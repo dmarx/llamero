@@ -18,7 +18,7 @@ dependencies = [
 llamero = "llamero:__main__.cli"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
