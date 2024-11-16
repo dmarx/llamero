@@ -1,21 +1,22 @@
-name: Build README
+name: Tests
 
 on:
   push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/test.yml'
+      - 'tests/**'
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
-
+  workflow_call:
+    
 env:
   PYTHON_VERSION: "3.11"
 
 jobs:
   test:
-    uses: ./.github/workflows/test.yml
-
-  build-readme:
-    needs: test
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     
     steps:
       - uses: actions/checkout@v4
@@ -26,8 +27,10 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
       
-      - name: Install package
-        run: pip install .
+      - name: Install dependencies
+        run: |
+          pip install .
       
-      - name: Generate README
-        run: python -m llamero.dir2doc
+      - name: Run tests
+        run: |
+          pytest tests/ -v

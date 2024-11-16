@@ -32,14 +32,15 @@ def load_config(config_path: str) -> dict:
     Returns:
         dict: Parsed configuration data
     """
-    try:
-        full_path = get_project_root() / config_path
+
+    full_path = get_project_root() / config_path
+    if full_path.exists():
         logger.debug(f"Attempting to load config from: {full_path}")
         with open(full_path, "rb") as f:
             return tomli.load(f)
-    except FileNotFoundError:
-        logger.error(f"Configuration file not found: {full_path}")
-        raise
+    else:
+        #logger.error(f"Configuration file not found: {full_path}")
+        raise FileNotFoundError(f"Configuration file not found: {full_path}")
 
 def commit_and_push(file_to_commit):
     """Commit and push changes for a specific file"""
