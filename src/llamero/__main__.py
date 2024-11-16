@@ -7,7 +7,7 @@ from .summary.concatenative import SummaryGenerator
 from .summary.python_files import PythonSummariesGenerator
 from .utils import commit_and_push_to_branch
 
-class Summarize:
+class summarize:
     def __init__(self, root: str | Path ='.'):
         self.root = root
         self._concatenative = SummaryGenerator(self.root)
