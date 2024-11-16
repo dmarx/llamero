@@ -13,7 +13,7 @@ class summarize:
         self._concatenative = SummaryGenerator(self.root)
         self._python = PythonSummariesGenerator(self.root)
     def _finish(self, files: list[str|Path] ):
-        commit_and_push(
+        commit_and_push_to_branch(
             message="Update directory summaries and special summaries",
             branch="summaries",
             paths=files,
