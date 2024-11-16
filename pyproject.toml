@@ -2,6 +2,7 @@
 name = "llamero"
 version = "0.0.1"
 description = "Tools to facilitate collaborating with LLMs"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "Jinja2>=3.1.2",
