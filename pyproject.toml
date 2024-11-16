@@ -1,6 +1,7 @@
 [project]
 name = "llamero"
-version = "0.0.1"
+#version = "0.0.1"
+dynamic = ["version"]
 description = "Tools to facilitate collaborating with LLMs"
 readme = "README.md"
 requires-python = ">=3.11"
