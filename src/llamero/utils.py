@@ -71,7 +71,7 @@ def commit_and_push_to_branch(
     message: str,
     branch: str,
     paths: list[str | Path],
-    base_branch: Optional[str] = None,
+    base_branch: str | None = None,
     force: bool = False
 ) -> None:
     """Commit changes and push to specified branch.
