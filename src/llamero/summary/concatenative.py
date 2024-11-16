@@ -14,7 +14,21 @@ class SummaryGenerator:
             root_dir: Root directory to generate summaries for
         """
         self.root_dir = Path(root_dir)
+
+    def _collect_directories(self) -> Set[Path]:
+        """Collect all directories containing files to summarize.
         
+        Returns:
+            Set of directory paths
+        """
+        directories = set()
+        for file_path in self.root_dir.rglob('*'):
+            if (file_path.is_file() and 
+                self.should_include_file(file_path) and
+                self.should_include_directory(file_path.parent)):
+                directories.add(file_path.parent)
+        return directories
+    
     def _map_directory(self, directory: Path) -> Path:
         """Map directory to its summary location.
         
