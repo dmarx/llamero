@@ -1,4 +1,5 @@
 # tests/test_summary/test_concatenative.py
+from pathlib import Path
 import pytest
 from llamero.summary.concatenative import SummaryGenerator
 
