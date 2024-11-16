@@ -1,0 +1,51 @@
+[project]
+name = "llamero"
+version = "0.0.1"
+description = "Tools to facilitate collaborating with LLMs"
+requires-python = ">=3.11"
+dependencies = [
+    "Jinja2>=3.1.2",
+    "tomli>=2.0.1",
+    "loguru>=0.7.0",
+    "fire>=0.5.0",
+    "tree-format>=0.1.2",
+    "pytest>=7.0",
+    "markdown2>=2.4.0",
+]
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+# addopts = "-v --cov=readme_generator --cov=summary_generator"
+
+# [tool.readme.tree]
+# ignore_patterns = [
+#     "__pycache__",
+#     "*.pyc",
+#     ".git",
+#     ".venv",
+#     ".pytest_cache",
+#     ".vscode",
+#     ".idea",
+#     "*.egg-info",
+# ]
+
+# [tool.summary]
+# ignore_patterns = [
+#     "__pycache__",
+#     "*.pyc",
+#     ".git",
+#     ".github/workflows",  # Explicitly exclude workflows directory
+#     ".venv",
+#     ".pytest_cache",
+#     ".vscode",
+#     ".idea",
+#     "*.egg-info",
+#     "SUMMARY",
+#     ".coverage",
+# ]
