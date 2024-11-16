@@ -34,8 +34,8 @@ class SummaryGenerator:
             return False
             
         # Skip .github/workflows directory
-        if '.github/workflows' in str(file_path):
-            return False
+        #if '.github/workflows' in str(file_path):
+        #    return False
             
         # Only include text files
         text_extensions = {'.py', '.md', '.txt', '.yml', '.yaml', '.toml', 
@@ -52,8 +52,8 @@ class SummaryGenerator:
             True if directory should have a summary
         """
         # Skip .github/workflows directory
-        if '.github/workflows' in str(directory):
-            return False
+        #if '.github/workflows' in str(directory):
+        #    return False
             
         # Skip other excluded directories
         excluded_dirs = {
