@@ -27,6 +27,7 @@ def test_get_ordered_templates(temp_project_dir):
     ordered = get_ordered_templates(template_dir, order_config)
     assert ordered == ["c.md.j2", "a.md.j2", "b.md.j2"]
 
+
 def test_compile_template_dir(temp_project_dir):
     """Test template compilation."""
     template_dir = temp_project_dir / "templates"
@@ -35,18 +36,15 @@ def test_compile_template_dir(temp_project_dir):
     sections_dir.mkdir()
     
     # Create test templates
-    base_template = """
-# {{ project.name }}
-{% for template in get_section_templates() %}
-{% include "sections/" ~ template %}
-{% endfor %}
-"""
+    base_template = """# {{ project.name }}
+
+{% for template in get_ordered_templates() %}
+{%- include "sections/" ~ template %}
+{% endfor %}"""
     (template_dir / "base.md.j2").write_text(base_template)
     
-    section_template = """
-## Section
-This is a test section.
-"""
+    section_template = """## Section
+This is a test section."""
     (sections_dir / "test.md.j2").write_text(section_template)
     
     # Test compilation
