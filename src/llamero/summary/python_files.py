@@ -1,7 +1,7 @@
 """Special summary generators for project-wide summaries."""
 from pathlib import Path
 from loguru import logger
-from .signature_extractor import SignatureExtractor, generate_python_summary
+from .python_signatures import SignatureExtractor, generate_python_summary
 
 
 class PythonSummariesGenerator:
