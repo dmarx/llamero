@@ -1,3 +1,4 @@
+# src/llamero/summary/concatenative.py
 """Core summary generation functionality."""
 from pathlib import Path
 from typing import List, Set
@@ -13,7 +14,51 @@ class SummaryGenerator:
             root_dir: Root directory to generate summaries for
         """
         self.root_dir = Path(root_dir)
+
+    def _collect_directories(self) -> Set[Path]:
+        """Collect all directories containing files to summarize.
         
+        Returns:
+            Set of directory paths
+        """
+        directories = set()
+        for file_path in self.root_dir.rglob('*'):
+            if (file_path.is_file() and 
+                self.should_include_file(file_path) and
+                self.should_include_directory(file_path.parent)):
+                directories.add(file_path.parent)
+        return directories
+    
+    def _map_directory(self, directory: Path) -> Path:
+        """Map directory to its summary location.
+        
+        Maps .github/workflows to github/workflows for security compliance.
+        
+        Args:
+            directory: Original directory path
+        
+        Returns:
+            Mapped directory path
+        """
+        # Convert .github/workflows to github/workflows
+        if '.github/workflows' in str(directory):
+            parts = list(directory.parts)
+            github_index = parts.index('.github')
+            parts[github_index] = 'github'
+            return Path(*parts)
+        return directory
+
+    def _map_path(self, path: Path) -> Path:
+        """Map file path to its summary location.
+        
+        Args:
+            path: Original file path
+        
+        Returns:
+            Mapped file path
+        """
+        return self._map_directory(path.parent) / path.name
+
     def should_include_file(self, file_path: Path) -> bool:
         """Determine if a file should be included in the summary.
         
@@ -33,10 +78,6 @@ class SummaryGenerator:
         if any(part in excluded_files for part in file_path.parts):
             return False
             
-        # Skip .github/workflows directory
-        if '.github/workflows' in str(file_path):
-            return False
-            
         # Only include text files
         text_extensions = {'.py', '.md', '.txt', '.yml', '.yaml', '.toml', 
                          '.json', '.html', '.css', '.js', '.j2'}
@@ -51,10 +92,6 @@ class SummaryGenerator:
         Returns:
             True if directory should have a summary
         """
-        # Skip .github/workflows directory
-        if '.github/workflows' in str(directory):
-            return False
-            
         # Skip other excluded directories
         excluded_dirs = {
             '.git', '__pycache__', '.pytest_cache',
@@ -63,20 +100,6 @@ class SummaryGenerator:
         
         return not any(part in excluded_dirs for part in directory.parts)
     
-    def _collect_directories(self) -> Set[Path]:
-        """Collect all directories containing files to summarize.
-        
-        Returns:
-            Set of directory paths
-        """
-        directories = set()
-        for file_path in self.root_dir.rglob('*'):
-            if (file_path.is_file() and 
-                self.should_include_file(file_path) and
-                self.should_include_directory(file_path.parent)):
-                directories.add(file_path.parent)
-        return directories
-        
     def generate_directory_summary(self, directory: Path) -> str:
         """Generate a summary for a single directory.
         
@@ -95,7 +118,7 @@ class SummaryGenerator:
                 continue
                 
             try:
-                # Get relative path from root for the header
+                # Get relative path from root for the header, maintaining .github in paths
                 rel_path = file_path.relative_to(self.root_dir)
                 
                 # Read file content
@@ -104,7 +127,7 @@ class SummaryGenerator:
                 # Add to summary with clear separation
                 summary.extend([
                     '=' * 80,
-                    f'File: {rel_path}',
+                    f'File: {rel_path}',  # Original path in header for reference
                     '=' * 80,
                     content,
                     '\n'  # Extra newline for separation
@@ -131,13 +154,17 @@ class SummaryGenerator:
         for directory in sorted(directories):
             if not self.should_include_directory(directory):
                 continue
-                
+            
+            # Map directory for summary placement
+            summary_dir = self._map_directory(directory)
+            summary_dir.mkdir(parents=True, exist_ok=True)
+            
             summary_content = self.generate_directory_summary(directory)
-            summary_path = directory / 'SUMMARY'
+            summary_path = summary_dir / 'SUMMARY'
             
             try:
                 summary_path.write_text(summary_content, encoding='utf-8')
-                logger.info(f"Generated summary for {directory}")
+                logger.info(f"Generated summary for {directory} -> {summary_path}")
                 summary_files.append(summary_path)
             except Exception as e:
                 logger.error(f"Error writing summary for {directory}: {e}")
