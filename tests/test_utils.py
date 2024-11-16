@@ -1,6 +1,7 @@
 # tests/test_utils.py
 import pytest
 from pathlib import Path
+import os
 from llamero.utils import get_project_root, load_config
 
 def test_get_project_root(temp_project_dir):
