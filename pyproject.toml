@@ -1,8 +1,6 @@
 [project]
 name = "llamero"
-dynamic = ["version"]
 description = "Tools to facilitate collaborating with LLMs"
-readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "Jinja2>=3.1.2",
@@ -13,6 +11,9 @@ dependencies = [
     "pytest>=7.0",
     "markdown2>=2.4.0",
 ]
+dynamic = ["version"]
+readme = "README.md"
+license = {file = "LICENSE"}
 
 [project.scripts]
 llamero = "llamero:__main__.cli"
