@@ -13,6 +13,8 @@ dependencies = [
     "markdown2>=2.4.0",
 ]
 
+[project.scripts]
+llamero = "llamero"
 
 [build-system]
 requires = ["hatchling"]
