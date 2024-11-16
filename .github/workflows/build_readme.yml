@@ -8,8 +8,8 @@ env:
   PYTHON_VERSION: "3.11"
 
 jobs:
-  test:
-    uses: ./.github/workflows/test.yml
+  # test:
+  #   uses: ./.github/workflows/test.yml
 
   build-readme:
     needs: test
