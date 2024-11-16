@@ -1,4 +1,4 @@
-from fire import Fire
+import fire
 from loguru import logger
 from pathlib import Path
 
