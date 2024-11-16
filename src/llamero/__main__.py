@@ -41,7 +41,7 @@ class Summarize:
 
 
 def cli():
-    fire.Fire(Summarize)
+    fire.Fire()
 
 
 if __name__ == "__main__":
