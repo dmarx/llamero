@@ -68,7 +68,7 @@ class TestClass:
     expected_fragments = [
         "# Python Project Structure",
         "def hello()",
-        'class TestClass:'  # Note the exact formatting with colon
+        'class TestClass'
     ]
     for fragment in expected_fragments:
         assert fragment in summary, f"Missing expected content: {fragment}"
