@@ -44,7 +44,6 @@ class TestClass:
     assert method.returns == "None"
     assert method.docstring == "Test method."
 
-# tests/test_summary/test_python_signatures.py
 
 def test_generate_python_summary(temp_project_dir):
     """Test Python summary generation."""
