@@ -57,3 +57,13 @@ When developing this project (or using it as a template), keep in mind these gui
    - Consider splitting when files require partial updates
    - Write tests alongside new features
    - Run tests locally before pushing
+
+### Key Features
+
+- Modular documentation system with Jinja2 templates
+- Automatic project structure documentation
+- Reusable GitHub Actions workflows
+- Centralized configuration management
+- Utility functions for common operations
+- Clean, maintainable architecture optimized for AI agents
+- Git operations handled through utilities
