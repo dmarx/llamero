@@ -1,9 +1,9 @@
 ![llamero logo](assets/llamero-logo.jpg)
 
-# {{ title }}
+# {{ project.name }}
 
-{# Get all section templates and include them with proper path #}
-{% for template in get_section_templates() %}
+{# Include each section template in the pre-determined order #}
+{% for template in templates %}
 {% include "sections/" ~ template %}
 
 {% endfor %}
