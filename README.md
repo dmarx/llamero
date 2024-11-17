@@ -11,6 +11,15 @@ Llamero is a toolkit to facilitate collaborating with LLMs on coding projects. I
 - Automating common documentation tasks
 - Building modular, context-aware codebases
 - Github actions integrations
+### Key Features
+
+- Modular documentation system with Jinja2 templates
+- Automatic project structure documentation
+- Reusable GitHub Actions workflows
+- Centralized configuration management
+- Utility functions for common operations
+- Clean, maintainable architecture optimized for AI agents
+- Git operations handled through utilities
 ## Development Guidelines
 
 ### Code Organization for LLM Interaction
@@ -186,12 +195,3 @@ The `SUMMARIES/` directory helps with:
     └── test_utils.py
 
 ```
-### Key Features
-
-- Modular documentation system with Jinja2 templates
-- Automatic project structure documentation
-- Reusable GitHub Actions workflows
-- Centralized configuration management
-- Utility functions for common operations
-- Clean, maintainable architecture optimized for AI agents
-- Git operations handled through utilities
