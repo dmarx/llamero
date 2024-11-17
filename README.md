@@ -154,6 +154,7 @@ The `SUMMARIES/` directory helps with:
 │   └── readme
 │       ├── base.md.j2
 │       └── sections
+│           ├── config.md.j2
 │           ├── development.md.j2
 │           ├── features.md.j2
 │           ├── introduction.md.j2
@@ -195,3 +196,30 @@ The `SUMMARIES/` directory helps with:
 - Utility functions for common operations
 - Clean, maintainable architecture optimized for AI agents
 - Git operations handled through utilities
+
+## Configuration
+
+Llamero uses `pyproject.toml` for configuration:
+
+```toml
+[
+tool.readme.tree
+]
+# Configure files to ignore in project tree
+ignore_patterns = [
+    "__pycache__",
+    "*.pyc",
+    ".git",
+    ".venv",
+    # Add custom patterns...
+]
+
+[
+tool.readme.sections.order
+]
+# Configure README section ordering
+"introduction.md.j2" = 0
+"prerequisites.md.j2" = 1
+"usage.md.j2" = 2
+# Add custom sections...
+```
