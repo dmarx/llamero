@@ -146,6 +146,7 @@ The `SUMMARIES/` directory helps with:
 │       └── sections
 │           ├── development.md.j2
 │           ├── features.md.j2
+│           ├── structure.md.j2
 │           └── summaries.md.j2
 ├── pyproject.toml
 ├── src
