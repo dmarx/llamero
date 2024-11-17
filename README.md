@@ -1,3 +1,7 @@
+![llamero logo](assets/llamero-logo.jpg)
+
+# llamero
+
 ## Introduction
 
 Llamero is a toolkit to facilitate collaborating with LLMs on coding projects. It provides tools for:
@@ -7,7 +11,6 @@ Llamero is a toolkit to facilitate collaborating with LLMs on coding projects. I
 - Automating common documentation tasks
 - Building modular, context-aware codebases
 - Github actions integrations
-
 ## Development Guidelines
 
 ### Code Organization for LLM Interaction
@@ -67,7 +70,6 @@ When developing this project (or using it as a template), keep in mind these gui
    - Consider splitting when files require partial updates
    - Write tests alongside new features
    - Run tests locally before pushing
-
 # LLM-Focused Summary System
 
 ## Overview
@@ -134,7 +136,6 @@ The `SUMMARIES/` directory helps with:
 - The `summaries` branch is workflow-owned and force-pushed on updates
 - Summary generation is configured in `pyproject.toml` under `[tool.summary]`
 - Don't modify summaries directly - they're automatically generated
-
 ## Project Structure
 
 ```
@@ -186,7 +187,6 @@ The `SUMMARIES/` directory helps with:
     └── test_utils.py
 
 ```
-
 ### Key Features
 
 - Modular documentation system with Jinja2 templates
@@ -196,30 +196,3 @@ The `SUMMARIES/` directory helps with:
 - Utility functions for common operations
 - Clean, maintainable architecture optimized for AI agents
 - Git operations handled through utilities
-
-## Configuration
-
-Llamero uses `pyproject.toml` for configuration:
-
-```toml
-[
-tool.readme.tree
-]
-# Configure files to ignore in project tree
-ignore_patterns = [
-    "__pycache__",
-    "*.pyc",
-    ".git",
-    ".venv",
-    # Add custom patterns...
-]
-
-[
-tool.readme.sections.order
-]
-# Configure README section ordering
-"introduction.md.j2" = 0
-"prerequisites.md.j2" = 1
-"usage.md.j2" = 2
-# Add custom sections...
-```
