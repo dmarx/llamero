@@ -48,7 +48,8 @@ ignore_patterns = [
     "*.pyd",
     ".Python",
     "*.so",
-    ".gitkeep"
+    ".gitkeep",
+    "_version.py"
 ]
 
 [tool.readme.sections.order]
