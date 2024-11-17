@@ -29,8 +29,5 @@ jobs:
       - name: Install package
         run: pip install .
 
-      - name: Update project structure
-        run: llamero tree
-      
       - name: Generate README
-        run: python -m llamero.dir2doc
+        run: llamero readme
