@@ -125,6 +125,55 @@ The `SUMMARIES/` directory helps with:
 - Summary generation is configured in `pyproject.toml` under `[tool.summary]`
 - Don't modify summaries directly - they're automatically generated
 
+## Project Structure
+
+```
+
+├── .github
+│   └── workflows
+│       ├── build_readme.yml
+│       ├── generate_summaries.yaml
+│       ├── publish.yaml
+│       └── test.yml
+├── LICENSE
+├── README.md
+├── assets
+│   ├── .gitkeep
+│   └── llamero-logo.jpg
+├── docs
+│   └── readme
+│       ├── base.md.j2
+│       └── sections
+│           ├── development.md.j2
+│           ├── features.md.j2
+│           └── summaries.md.j2
+├── pyproject.toml
+├── src
+│   └── llamero
+│       ├── __init__.py
+│       ├── __main__.py
+│       ├── _version.py
+│       ├── dir2doc.py
+│       ├── summary
+│       │   ├── __init__.py
+│       │   ├── concatenative.py
+│       │   ├── python_files.py
+│       │   ├── python_signatures.py
+│       │   └── readmes.py
+│       ├── tree_generator.py
+│       └── utils.py
+└── tests
+    ├── conftest.py
+    ├── test_dir2doc.py
+    ├── test_summary
+    │   ├── test_concatenative.py
+    │   ├── test_python_signatures.py
+    │   └── test_workflow_mapping.py
+    ├── test_tree_generator.py
+    └── test_utils.py
+
+```
+
 ### Key Features
 
 - Modular documentation system with Jinja2 templates
