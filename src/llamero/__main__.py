@@ -6,7 +6,7 @@ from .summary.concatenative import SummaryGenerator
 from .summary.python_files import PythonSummariesGenerator
 from .tree_generator import generate_tree
 from .dir2doc import compile_template_dir
-from .utils import commit_and_push_to_branch, get_project_root, load_config
+from .utils import commit_and_push, commit_and_push_to_branch, get_project_root, load_config
 
 
 def build_template(
