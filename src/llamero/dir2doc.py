@@ -4,37 +4,23 @@ from loguru import logger
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 from .utils import load_config, get_project_root, commit_and_push
 
-def get_ordered_templates(template_dir: Path, order_config: dict | None = None) -> list[str]:
-    """Get all templates in proper order.
+def collect_section_templates(sections_dir: Path, order_config: dict | None = None) -> list[str]:
+    """
+    Collect and order section templates from a directory.
     
     Args:
-        template_dir: Path to template directory containing sections/
-        order_config: Optional dictionary mapping filenames to order priority
+        sections_dir: Directory containing section templates
+        order_config: Optional mapping of template names to order values from config
         
     Returns:
-        List of template names in desired order
+        List of template names in correct order
     """
-    sections_dir = template_dir / "sections"
-    if not sections_dir.exists():
-        sections_dir = template_dir  # Use template_dir itself if no sections/ subdirectory
-        
     templates = []
-    
-    # Collect all template files
     for file in sections_dir.glob("*.j2"):
-        if order_config and file.name in order_config and not file.exists():
-            continue  # Skip optional files that don't exist
-        templates.append(file.name)
+        if not order_config or file.name in order_config:
+            templates.append(file.name)
     
-    if order_config:
-        # Sort by explicit order, then alphabetically for any new sections
-        return sorted(
-            templates,
-            key=lambda x: order_config.get(x, 500)
-        )
-    else:
-        # Just sort alphabetically if no order specified
-        return sorted(templates)
+    return sorted(templates, key=lambda x: order_config.get(x, 500) if order_config else x)
 
 def compile_template_dir(
     template_dir: Path,
@@ -43,7 +29,8 @@ def compile_template_dir(
     order_config: Dict | None = None,
     commit: bool = True
 ) -> None:
-    """Compile a directory of templates into a single output file.
+    """
+    Compile a directory of templates into a single output file.
     
     Args:
         template_dir: Path to template directory
@@ -88,6 +75,11 @@ def compile_template_dir(
             'config': project_config.get('tool', {}).get(template_dir.name, {})
         }
     
+    # Collect and order templates
+    ordered_templates = collect_section_templates(sections_dir, order_config)
+    logger.info(f"Found {len(ordered_templates)} templates in order: {ordered_templates}")
+    
+    # Set up Jinja environment
     logger.info("Setting up Jinja2 environment")
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
@@ -95,8 +87,8 @@ def compile_template_dir(
         lstrip_blocks=True
     )
     
-    # Add template utility functions
-    env.globals['get_ordered_templates'] = lambda: get_ordered_templates(template_dir, order_config)
+    # Add ordered templates to variables
+    variables['templates'] = ordered_templates
     
     try:
         if base_template.exists():
@@ -109,14 +101,11 @@ def compile_template_dir(
             raise TemplateNotFound('base.md.j2')
             
     except Exception as e:
-        logger.warning(f"Could not use base template ({e}), concatenating sections instead")
-        templates = get_ordered_templates(template_dir, order_config)
-        
-        logger.info(f"Found {len(templates)} section templates to concatenate")
-        logger.debug(f"Templates to process: {templates}")
+        logger.warning(f"Could not use base template ({str(e)}), concatenating sections instead")
+        logger.info(f"Processing {len(ordered_templates)} section templates")
         
         sections = []
-        for template_name in templates:
+        for template_name in ordered_templates:
             try:
                 template = env.get_template(f"sections/{template_name}")
                 sections.append(template.render(**variables))
