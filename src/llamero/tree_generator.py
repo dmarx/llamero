@@ -1,7 +1,7 @@
 from pathlib import Path
 from loguru import logger
 from tree_format import format_tree
-from .utils import load_config
+from ..utils import load_config
 import fnmatch
 
 def should_include_path(path: Path, config: dict) -> bool:
@@ -17,17 +17,20 @@ def should_include_path(path: Path, config: dict) -> bool:
         True if path should be included, False if it matches any ignore pattern
     """
     ignore_patterns = config.get("tool", {}).get("readme", {}).get("tree", {}).get("ignore_patterns", [])
-    path_parts = str(path).split('/')
     
+    # Convert path to parts for matching
+    parts = path.parts
+    if not parts:  # Handle empty path
+        return True
+        
     for pattern in ignore_patterns:
         # Handle file extension patterns (e.g. *.pyc)
         if pattern.startswith('*'):
-            if any(part.endswith(pattern[1:]) for part in path_parts):
+            if str(path).endswith(pattern[1:]):
                 return False
-        # Handle exact directory/file matches
-        else:
-            if pattern in path_parts:
-                return False
+        # Handle directory/file name patterns
+        elif pattern in parts or (pattern == str(path.name)):
+            return False
     return True
 
 def node_to_tree(path: Path, config: dict) -> tuple[str, list] | None:
