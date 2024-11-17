@@ -1,11 +1,10 @@
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Dict
 from loguru import logger
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 from .utils import load_config, get_project_root, commit_and_push
 
-
-def get_ordered_templates(template_dir: Path, order_config: Optional[Dict[str, int]] = None) -> List[str]:
+def get_ordered_templates(template_dir: Path, order_config: dict | None = None) -> list[str]:
     """Get all templates in proper order.
     
     Args:
@@ -37,12 +36,11 @@ def get_ordered_templates(template_dir: Path, order_config: Optional[Dict[str, i
         # Just sort alphabetically if no order specified
         return sorted(templates)
 
-
 def compile_template_dir(
     template_dir: Path,
-    output_path: Optional[Path] = None,
-    variables: Optional[Dict] = None,
-    order_config: Optional[Dict[str, int]] = None,
+    output_path: Path | None = None,
+    variables: Dict | None = None,
+    order_config: Dict | None = None,
     commit: bool = True
 ) -> None:
     """Compile a directory of templates into a single output file.
@@ -56,6 +54,23 @@ def compile_template_dir(
     """
     project_root = get_project_root()
     logger.debug(f"Project root identified as: {project_root}")
+    
+    # Ensure template_dir is absolute
+    template_dir = template_dir if template_dir.is_absolute() else project_root / template_dir
+    logger.debug(f"Using template directory: {template_dir}")
+    
+    # Verify template directory structure
+    if not template_dir.exists():
+        raise ValueError(f"Template directory not found: {template_dir}")
+    
+    base_template = template_dir / 'base.md.j2'
+    sections_dir = template_dir / 'sections'
+    
+    logger.debug(f"Looking for base template at: {base_template}")
+    logger.debug(f"Looking for sections directory at: {sections_dir}")
+    
+    if not sections_dir.exists():
+        raise ValueError(f"Sections directory not found: {sections_dir}")
     
     # Determine output path if not specified
     if output_path is None:
@@ -75,7 +90,7 @@ def compile_template_dir(
     
     logger.info("Setting up Jinja2 environment")
     env = Environment(
-        loader=FileSystemLoader(template_dir),
+        loader=FileSystemLoader(str(template_dir)),
         trim_blocks=True,
         lstrip_blocks=True
     )
@@ -83,18 +98,31 @@ def compile_template_dir(
     # Add template utility functions
     env.globals['get_ordered_templates'] = lambda: get_ordered_templates(template_dir, order_config)
     
-    # Check for base template, fallback to concatenation if none exists
     try:
-        template = env.get_template('base.md.j2')
-        logger.info("Rendering using base template")
-        output = template.render(**variables)
-    except:
-        logger.info("No base template found, concatenating section templates")
+        if base_template.exists():
+            logger.info(f"Found base template, attempting to render")
+            template = env.get_template('base.md.j2')
+            output = template.render(**variables)
+            logger.info("Successfully rendered base template")
+        else:
+            logger.warning(f"No base template found at {base_template}, falling back to section concatenation")
+            raise TemplateNotFound('base.md.j2')
+            
+    except Exception as e:
+        logger.warning(f"Could not use base template ({e}), concatenating sections instead")
         templates = get_ordered_templates(template_dir, order_config)
+        
+        logger.info(f"Found {len(templates)} section templates to concatenate")
+        logger.debug(f"Templates to process: {templates}")
+        
         sections = []
         for template_name in templates:
-            template = env.get_template(f"sections/{template_name}")
-            sections.append(template.render(**variables))
+            try:
+                template = env.get_template(f"sections/{template_name}")
+                sections.append(template.render(**variables))
+            except Exception as template_error:
+                logger.error(f"Error rendering template {template_name}: {template_error}")
+        
         output = '\n\n'.join(sections)
     
     logger.debug(f"Writing output to: {output_path}")
@@ -103,23 +131,3 @@ def compile_template_dir(
     if commit:
         logger.info("Committing changes")
         commit_and_push(output_path)
-
-
-def generate_readme() -> None:
-    """Legacy function to maintain backwards compatibility"""
-    template_dir = get_project_root() / 'docs/readme'
-    section_order = {
-        "introduction.md.j2": 0,
-        "prerequisites.md.j2": 1,
-        "usage.md.j2": 2,
-        "development.md.j2": 3,
-        "summaries.md.j2": 4,
-        "site.md.j2": 5,
-        "structure.md.j2": 6,
-        "todo.md.j2": 999  # Always last if present
-    }
-    compile_template_dir(template_dir, order_config=section_order)
-
-
-if __name__ == "__main__":
-    generate_readme()
