@@ -76,29 +76,31 @@ ignore_patterns = ["__pycache__", "*.pyc", ".git"]
     (mock_repo_with_files / "pyproject.toml").write_text(config_content)
     
     tree = generate_tree(".")
-    print(f"Generated tree:\n{tree}")
+    print(f"Generated tree:\n{tree}")  # Keep for debugging
+    
+    tree_lines = tree.splitlines()
     
     # Should include .github and workflows
-    assert ".github" in tree
-    assert "workflows" in tree
-    assert "test.yml" in tree
-    assert "build.yml" in tree
+    assert any(".github" in line for line in tree_lines)
+    assert any("workflows" in line for line in tree_lines)
+    assert any("test.yml" in line for line in tree_lines)
+    assert any("build.yml" in line for line in tree_lines)
     
     # Should include other files from mock_git_repo
-    assert "src" in tree
-    assert "test_project" in tree
-    assert "main.py" in tree
+    assert any("src" in line for line in tree_lines)
+    assert any("test_project" in line for line in tree_lines)
+    assert any("main.py" in line for line in tree_lines)
     
     # Should include added test files
-    assert ".env" in tree
-    assert "docs" in tree
-    assert "readme" in tree
-    assert "sections" in tree
+    assert any(".env" in line for line in tree_lines)
+    assert any("docs" in line for line in tree_lines)
+    assert any("readme" in line for line in tree_lines)
+    assert any("sections" in line for line in tree_lines)
     
-    # Should exclude ignored patterns
-    assert "__pycache__" not in tree
-    assert ".git" not in tree
-    assert "*.pyc" not in tree
+    # Should exclude ignored patterns - check each line individually
+    assert not any(line.strip().endswith("__pycache__") for line in tree_lines)
+    assert not any(line.strip().endswith(".git") for line in tree_lines)
+    assert not any(line.endswith(".pyc") for line in tree_lines)
 
 def test_empty_directory_handling(mock_git_repo):
     """Test handling of empty directories"""
