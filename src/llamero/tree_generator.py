@@ -4,38 +4,45 @@ from tree_format import format_tree
 from .utils import load_config
 import fnmatch
 
-def should_include_path(path: Path, ignore_patterns: set[str]) -> bool:
+def should_include_path(path: Path, config: dict) -> bool:
     """
-    Determines if a path should be included based on ignore patterns.
-    Matches any path component against the patterns for more granular control.
+    Determines if a path should be included based on config ignore patterns.
+    Matches path components exactly against ignore patterns.
     
     Args:
         path: Path to check
-        ignore_patterns: Set of glob patterns to check against
+        config: Config dict containing ignore patterns under tool.readme.tree.ignore_patterns
         
     Returns:
         True if path should be included, False if it matches any ignore pattern
     """
+    ignore_patterns = config.get("tool", {}).get("readme", {}).get("tree", {}).get("ignore_patterns", [])
     path_parts = str(path).split('/')
-    return not any(
-        fnmatch.fnmatch(part, pattern)
-        for pattern in ignore_patterns
-        for part in path_parts
-    )
+    
+    for pattern in ignore_patterns:
+        # Handle file extension patterns (e.g. *.pyc)
+        if pattern.startswith('*'):
+            if any(part.endswith(pattern[1:]) for part in path_parts):
+                return False
+        # Handle exact directory/file matches
+        else:
+            if pattern in path_parts:
+                return False
+    return True
 
-def node_to_tree(path: Path, ignore_patterns: set[str]) -> tuple[str, list] | None:
+def node_to_tree(path: Path, config: dict) -> tuple[str, list] | None:
     """
     Recursively converts a directory path to a tree structure.
     Filters out empty directories except for essential ones like 'docs' and 'src'.
     
     Args:
         path: Directory or file path to convert
-        ignore_patterns: Set of glob patterns to filter paths
+        config: Config dict containing ignore patterns
         
     Returns:
         Tuple of (node_name, child_nodes) or None if path should be excluded
     """
-    if not should_include_path(path, ignore_patterns):
+    if not should_include_path(path, config):
         return None
         
     if path.is_file():
@@ -43,7 +50,7 @@ def node_to_tree(path: Path, ignore_patterns: set[str]) -> tuple[str, list] | No
         
     children = [
         node for child in sorted(path.iterdir())
-        if (node := node_to_tree(child, ignore_patterns)) is not None
+        if (node := node_to_tree(child, config)) is not None
     ]
     
     if not children and path.name not in {'docs', 'src'}:
@@ -64,18 +71,12 @@ def generate_tree(root_dir: str = ".") -> str:
     """
     try:
         config = load_config("pyproject.toml")
-        ignore_patterns = set(
-            config.get("tool", {})
-            .get("readme", {})
-            .get("tree", {})
-            .get("ignore_patterns", [])
-        )
     except (FileNotFoundError, KeyError):
-        ignore_patterns = set()
+        config = {"tool": {"readme": {"tree": {"ignore_patterns": []}}}}
         logger.warning("Config file or sections missing, proceeding with no ignore patterns")
     
     root_path = Path(root_dir)
-    tree_root = node_to_tree(root_path, ignore_patterns)
+    tree_root = node_to_tree(root_path, config)
     
     if tree_root is None:
         return ""
