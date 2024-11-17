@@ -1,4 +1,4 @@
-![<img src="assets/llamero-logo.jpg" height="250"/>](assets/llamero-logo.jpg)
+![llamero logo](assets/llamero-logo.jpg)
 
 # llamero
 
