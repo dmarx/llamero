@@ -144,7 +144,6 @@ ls SUMMARIES/
 │   └── llamero
 │       ├── __init__.py
 │       ├── __main__.py
-│       ├── _version.py
 │       ├── dir2doc.py
 │       ├── summary
 │       │   ├── __init__.py
