@@ -10,7 +10,6 @@ from .utils import commit_and_push, commit_and_push_to_branch, get_project_root,
 
 
 def build_template(
-    self, 
     template_dir: str | Path, 
     output_path: str | Path | None = None,
     variables: dict | None = None,
@@ -54,7 +53,7 @@ def build_template(
     )
 
 
-def tree(self, output: str | None = None, commit: bool = True) -> None:
+def tree(output: str | None = None, commit: bool = True) -> None:
     """
     Generate a tree representation of the project structure
     
@@ -92,7 +91,7 @@ def tree(self, output: str | None = None, commit: bool = True) -> None:
     if commit:
         commit_and_push()
 
-def readme(self, commit: bool = True) -> None:
+def readme(commit: bool = True) -> None:
     """
     Generate the project README
     
