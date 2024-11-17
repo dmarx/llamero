@@ -1,7 +1,7 @@
 from pathlib import Path
 from loguru import logger
 from tree_format import format_tree
-from ..utils import load_config
+from .utils import load_config
 import fnmatch
 
 def should_include_path(path: Path, config: dict) -> bool:
