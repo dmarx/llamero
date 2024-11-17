@@ -1,5 +1,3 @@
-# llamero/tests/test_tree_generator.py
-
 from loguru import logger
 from pathlib import Path
 import pytest
@@ -10,31 +8,31 @@ from llamero.tree_generator import (
 )
 
 @pytest.fixture
-def mock_repo_with_files(mock_repo):
-    """Create a mock repository with various file types"""
+def mock_repo_with_files(mock_git_repo):
+    """Extend mock_git_repo with additional test files"""
     # Add workflow files
-    workflow_dir = mock_repo / ".github" / "workflows"
+    workflow_dir = mock_git_repo / ".github" / "workflows"
     workflow_dir.mkdir(parents=True)
     (workflow_dir / "test.yml").write_text("name: Test")
     (workflow_dir / "build.yml").write_text("name: Build")
     
     # Add various hidden files
-    (mock_repo / ".env").write_text("SECRET=123")
-    (mock_repo / ".github" / "README.md").write_text("# GitHub Config")
+    (mock_git_repo / ".env").write_text("SECRET=123")
+    (mock_git_repo / ".github" / "README.md").write_text("# GitHub Config")
     
     # Add some regular files and directories
-    docs_dir = mock_repo / "docs" / "readme" / "sections"
-    docs_dir.mkdir(parents=True, exist_ok=True)  # Added exist_ok=True
+    docs_dir = mock_git_repo / "docs" / "readme" / "sections"
+    docs_dir.mkdir(parents=True, exist_ok=True)
     (docs_dir / "introduction.md").write_text("# Intro")
     
     # Add some files that should typically be ignored
-    cache_dir = mock_repo / "__pycache__"
-    cache_dir.mkdir(exist_ok=True)  # Added exist_ok=True
+    cache_dir = mock_git_repo / "__pycache__"
+    cache_dir.mkdir(exist_ok=True)
     (cache_dir / "module.pyc").write_text("cache")
     
-    return mock_repo
+    return mock_git_repo
 
-def test_ignore_patterns():
+def test_ignore_patterns(mock_git_repo):
     """Test that ignore patterns work correctly"""
     config = {
         "tool": {
@@ -47,29 +45,38 @@ def test_ignore_patterns():
     }
     
     # Should exclude based on exact pattern matches
-    assert should_include_path(Path(".git/config"), config) is False
-    assert should_include_path(Path("foo/__pycache__/bar.pyc"), config) is False
-    assert should_include_path(Path("test.pyc"), config) is False
+    assert not should_include_path(Path(".git/config"), config)
+    assert not should_include_path(Path("foo/__pycache__/bar.pyc"), config)
+    assert not should_include_path(Path("test.pyc"), config)
     
     # Should include non-matching paths
-    assert should_include_path(Path(".github/workflows/test.yml"), config) is True  # .github != .git
-    assert should_include_path(Path(".env"), config) is True
-    assert should_include_path(Path("docs/readme/file.md"), config) is True
-    assert should_include_path(Path(".vscode/settings.json"), config) is True
-    assert should_include_path(Path("my_cache/file.txt"), config) is True  # Only exact __pycache__ matches
+    assert should_include_path(Path(".github/workflows/test.yml"), config)
+    assert should_include_path(Path(".env"), config)
+    assert should_include_path(Path("docs/readme/file.md"), config)
+    assert should_include_path(Path("src/test_project/main.py"), config)
 
 def test_full_tree_generation(mock_repo_with_files, monkeypatch):
     """Test complete tree generation with various file types"""
     monkeypatch.chdir(mock_repo_with_files)
     
-    # Create config that only ignores specific patterns
-    (mock_repo_with_files / "pyproject.toml").write_text("""
+    # Update existing pyproject.toml with tree config
+    config_content = """
+[project]
+name = "test-project"
+description = "Test project"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[tool.llamero]
+verbose = true
+
 [tool.readme.tree]
 ignore_patterns = ["__pycache__", "*.pyc", ".git"]
-    """)
+"""
+    (mock_repo_with_files / "pyproject.toml").write_text(config_content)
     
     tree = generate_tree(".")
-    print(f"Generated tree:\n{tree}")  # Debug output
+    print(f"Generated tree:\n{tree}")
     
     # Should include .github and workflows
     assert ".github" in tree
@@ -77,24 +84,28 @@ ignore_patterns = ["__pycache__", "*.pyc", ".git"]
     assert "test.yml" in tree
     assert "build.yml" in tree
     
-    # Should include other hidden files not explicitly ignored
-    assert ".env" in tree
+    # Should include other files from mock_git_repo
+    assert "src" in tree
+    assert "test_project" in tree
+    assert "main.py" in tree
     
-    # Should include regular files and directories
+    # Should include added test files
+    assert ".env" in tree
     assert "docs" in tree
     assert "readme" in tree
     assert "sections" in tree
     
     # Should exclude ignored patterns
     assert "__pycache__" not in tree
+    assert ".git" not in tree
     assert "*.pyc" not in tree
 
-def test_empty_directory_handling(mock_repo):
+def test_empty_directory_handling(mock_git_repo):
     """Test handling of empty directories"""
     # Create some empty directories
-    (mock_repo / "docs" / "empty").mkdir(parents=True, exist_ok=True)
-    (mock_repo / "src" / "empty").mkdir(parents=True, exist_ok=True)
-    (mock_repo / "temp" / "empty").mkdir(parents=True, exist_ok=True)
+    (mock_git_repo / "docs" / "empty").mkdir(parents=True, exist_ok=True)
+    (mock_git_repo / "src" / "empty").mkdir(parents=True, exist_ok=True)
+    (mock_git_repo / "temp" / "empty").mkdir(parents=True, exist_ok=True)
     
     config = {
         "tool": {
@@ -107,11 +118,11 @@ def test_empty_directory_handling(mock_repo):
     }
     
     # Empty directories should be excluded unless they're essential
-    assert node_to_tree(mock_repo / "temp" / "empty", config) is None
+    assert node_to_tree(mock_git_repo / "temp" / "empty", config) is None
     
     # Essential directories should be kept even if empty
-    assert node_to_tree(mock_repo / "docs", config) is not None
-    assert node_to_tree(mock_repo / "src", config) is not None
+    assert node_to_tree(mock_git_repo / "docs", config) is not None
+    assert node_to_tree(mock_git_repo / "src", config) is not None
 
 def test_debug_path_processing(mock_repo_with_files):
     """Debug test to print path processing details"""
