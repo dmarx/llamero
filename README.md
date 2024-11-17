@@ -1,3 +1,13 @@
+## Introduction
+
+Llamero is a toolkit to facilitate collaborating with LLMs on coding projects. It provides tools for:
+
+- Generating structured documentation and summaries to provide LLMs with relevant context
+- Maintaining clean, LLM-friendly project organization
+- Automating common documentation tasks
+- Building modular, context-aware codebases
+- Github actions integrations
+
 ## Development Guidelines
 
 ### Code Organization for LLM Interaction
@@ -146,6 +156,7 @@ The `SUMMARIES/` directory helps with:
 │       └── sections
 │           ├── development.md.j2
 │           ├── features.md.j2
+│           ├── introduction.md.j2
 │           ├── structure.md.j2
 │           └── summaries.md.j2
 ├── pyproject.toml
