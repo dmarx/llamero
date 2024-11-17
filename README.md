@@ -149,7 +149,6 @@ The `SUMMARIES/` directory helps with:
 ├── LICENSE
 ├── README.md
 ├── assets
-│   ├── .gitkeep
 │   └── llamero-logo.jpg
 ├── docs
 │   └── readme
