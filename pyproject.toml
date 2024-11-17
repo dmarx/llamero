@@ -50,8 +50,8 @@ ignore_patterns = [
     "*.so"
 ]
 
-[tool.readme.sections]
 # Lower numbers appear first. Use 999 for optional sections that should appear last
+[tool.readme.sections]
 order = { 
     "introduction.md.j2" = 0,
     "prerequisites.md.j2" = 1,
