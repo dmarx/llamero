@@ -89,7 +89,7 @@ def tree(output: str | None = None, commit: bool = True) -> None:
     logger.info(f"Tree structure written to {output_path}")
     
     if commit:
-        commit_and_push()
+        commit_and_push(output_path)
 
 def readme(commit: bool = True) -> None:
     """
