@@ -51,14 +51,15 @@ ignore_patterns = [
     ".gitkeep"
 ]
 
-# # Lower numbers appear first. Use 999 for optional sections that should appear last
 [tool.readme.sections.order]
 "introduction.md.j2" = 0
-"prerequisites.md.j2" = 1
-"usage.md.j2" = 2
-"development.md.j2" = 3
-"summaries.md.j2" = 4
-"site.md.j2" = 5
-"structure.md.j2" = 6
-"features.md.j2" = 7
+"features.md.j2" = 1
+"prerequisites.md.j2" = 2
+"setup.md.j2" = 2.1
+"installation.md.j2" = 2.2
+"usage.md.j2" = 3
+"development.md.j2" = 4
+"summaries.md.j2" = 5
+"site.md.j2" = 6
+"structure.md.j2" = 7
 "todo.md.j2" = 999
