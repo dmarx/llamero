@@ -42,7 +42,7 @@ When developing this project (or using it as a template), keep in mind these gui
 3. **Dependencies**
    - All dependencies managed in `pyproject.toml`
    - Optional dependencies grouped by feature:
-     ```toml
+     ```
      [project.optional-dependencies]
      test = ["pytest", ...]
      site = ["markdown2", ...]
