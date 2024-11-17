@@ -1,0 +1,26 @@
+## Configuration
+
+Llamero uses `pyproject.toml` for configuration:
+
+```toml
+[
+tool.readme.tree
+]
+# Configure files to ignore in project tree
+ignore_patterns = [
+    "__pycache__",
+    "*.pyc",
+    ".git",
+    ".venv",
+    # Add custom patterns...
+]
+
+[
+tool.readme.sections.order
+]
+# Configure README section ordering
+"introduction.md.j2" = 0
+"prerequisites.md.j2" = 1
+"usage.md.j2" = 2
+# Add custom sections...
+```
