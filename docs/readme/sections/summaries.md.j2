@@ -1,15 +1,22 @@
-# LLM-Focused Summary System
+## LLM-Focused Summary System
 
-## Overview
-The project includes an automated summary generation system designed to help LLMs efficiently work with the codebase. This system generates both local directory summaries and project-wide summaries to provide focused, relevant context for different tasks.
+One of the most valuable features `llamero` offers is tooling to automate generation of various kinds of project/directory summaries that can be provided to an LLM for context.
 
-## Types of Summaries
+This system generates both local directory summaries and project-wide summaries to provide focused, relevant context for different tasks.
+
+The default behavior is to generate summaries and force push them to a dedicated `summaries` branch, keeping the actual project uncluttered so the user can pick and choose 
+the specific summaries to share as they need to, when they need to, rather than filling up the LLMs context unnecessarily.
+
+For a concrete example, poke around [llamero's `summaries` branch](https://github.com/dmarx/llamero/tree/summaries).
+`llamero`'s summaries are currently configured to only be generated on request, through the `on: workflow_dispatch:` directive in the workflow configuration [here](https://github.com/dmarx/llamero/blob/main/.github/workflows/generate_summaries.yaml).
 
 ### Directory Summaries
-Each directory in the project contains a `SUMMARY` file that concatenates all text files in that directory. This provides focused, local context when working on directory-specific tasks.
+
+Each directory in the project contains a `SUMMARY` file that concatenates all text files in that directory, recursively. 
+This provides focused, local context when working on directory-specific tasks.
 
 ### Project-Wide Summaries
-Special project-wide summaries are maintained in the `SUMMARIES/` directory on the `summaries` branch:
+Special project-wide summaries are maintained in the `SUMMARIES/` directory:
 
 - `READMEs.md`: Concatenation of all README files in the project
 - `README_SUBs.md`: Same as above but excluding the root README
@@ -19,17 +26,7 @@ Special project-wide summaries are maintained in the `SUMMARIES/` directory on t
   - Docstrings
   - Clear indication of class membership
 
-## Accessing Summaries
 
-### Directory Summaries
-These are available on any branch in their respective directories:
-```bash
-# Example: View summary for the readme_generator package
-cat src/readme_generator/SUMMARY
-```
-
-### Project-Wide Summaries
-These live exclusively on the `summaries` branch:
 ```bash
 # Switch to summaries branch
 git checkout summaries
@@ -37,30 +34,3 @@ git checkout summaries
 # View available summaries
 ls SUMMARIES/
 ```
-
-## Using Summaries Effectively
-
-### For Local Development
-Directory summaries are useful when:
-- Getting up to speed on a specific package
-- Understanding local code context
-- Planning modifications to a package
-
-### For Project-Wide Understanding
-The `SUMMARIES/` directory helps with:
-- Understanding overall project structure
-- Finding relevant code across packages
-- Reviewing API signatures and documentation
-- Planning cross-package changes
-
-### For LLM Interactions
-- Point LLMs to specific summaries based on the task
-- Use directory summaries for focused work
-- Use project-wide summaries for architectural decisions
-- Combine different summaries as needed for context
-
-## Implementation Notes
-- Summaries are automatically updated on every push to `main`
-- The `summaries` branch is workflow-owned and force-pushed on updates
-- Summary generation is configured in `pyproject.toml` under `[tool.summary]`
-- Don't modify summaries directly - they're automatically generated
