@@ -3,7 +3,7 @@
 from loguru import logger
 from pathlib import Path
 import pytest
-from readme_generator.generators.tree_generator import (
+from llamero.tree_generator import (
     should_include_path,
     node_to_tree,
     generate_tree
