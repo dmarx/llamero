@@ -59,33 +59,40 @@ class SummaryGenerator:
             self.max_file_size = self.config["max_file_size_kb"] * 1024
 
     def _map_directory(self, directory: Path) -> Path:
-        """Legacy method for testing compatibility."""
-        return self._map_path_components(directory)
+        """Map directory for consistent handling of special paths like .github/workflows."""
+        # Ensure we have a Path object
+        directory = Path(directory)
+        
+        # If it's already absolute and under root_dir, make it relative first
+        if directory.is_absolute():
+            try:
+                directory = directory.relative_to(self.root_dir)
+            except ValueError:
+                pass
+        
+        parts = list(directory.parts)
+        
+        # Handle .github/workflows mapping
+        for i, part in enumerate(parts[:-1]):  # Don't check last part if it's a file
+            if part == '.github' and i + 1 < len(parts) and parts[i + 1] == 'workflows':
+                parts[i] = 'github'
+                # If the original path was absolute, make result absolute
+                if directory.is_absolute():
+                    return self.root_dir / Path(*parts)
+                return Path(*parts)
+        
+        # Return original path if no mapping needed
+        return directory
     
     def _map_path_components(self, path: Path) -> Path:
         """Map path components according to rules."""
-        try:
-            rel_path = path.resolve().relative_to(self.root_dir)
-            parts = list(rel_path.parts)
-            
-            # Map .github/workflows to github/workflows
-            for i, part in enumerate(parts[:-1]):  # Don't check last part if it's a file
-                if part == '.github' and i + 1 < len(parts) and parts[i + 1] == 'workflows':
-                    parts[i] = 'github'
-                    mapped_path = self.root_dir / Path(*parts)
-                    if path.is_dir():
-                        self.workflow_mapping[path] = mapped_path
-                    return mapped_path
-            
-            # Check if this path's parent is a mapped workflow directory
-            parent = path.parent
-            if parent in self.workflow_mapping:
-                return self.workflow_mapping[parent] / path.name
-            
-            return path
-            
-        except ValueError:
-            return path
+        mapped = self._map_directory(path)
+        
+        # If the mapped path is relative and we're generating files, make it absolute
+        if not mapped.is_absolute() and self.root_dir:
+            return self.root_dir / mapped
+        
+        return mapped
     
     def should_include_file(self, file_path: Path) -> bool:
         """Determine if a file should be included in the summary."""
