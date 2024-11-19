@@ -57,7 +57,7 @@ class SummaryGenerator:
             logger.warning(f"Error loading config: {e}, using defaults")
             self.config = self.DEFAULT_CONFIG.copy()
             self.max_file_size = self.config["max_file_size_kb"] * 1024
-    
+
     def _map_directory(self, directory: Path) -> Path:
         """Legacy method for testing compatibility."""
         return self._map_path_components(directory)
@@ -65,19 +65,8 @@ class SummaryGenerator:
     def _map_path_components(self, path: Path) -> Path:
         """Map path components according to rules."""
         try:
-            # Handle both string and Path inputs
-            if isinstance(path, str):
-                path = Path(path)
-            
-            # For absolute paths, make relative to root
-            try:
-                rel_path = path.resolve().relative_to(self.root_dir)
-                path = rel_path
-            except ValueError:
-                # Path wasn't under root_dir, just continue with original path
-                pass
-                
-            parts = list(path.parts)
+            rel_path = path.resolve().relative_to(self.root_dir)
+            parts = list(rel_path.parts)
             
             # Map .github/workflows to github/workflows
             for i, part in enumerate(parts[:-1]):  # Don't check last part if it's a file
@@ -89,17 +78,13 @@ class SummaryGenerator:
                     return mapped_path
             
             # Check if this path's parent is a mapped workflow directory
-            try:
-                parent = path.parent
-                if parent in self.workflow_mapping:
-                    return self.workflow_mapping[parent] / path.name
-            except Exception:
-                pass
+            parent = path.parent
+            if parent in self.workflow_mapping:
+                return self.workflow_mapping[parent] / path.name
             
-            return self.root_dir / path if path.is_absolute() else path
+            return path
             
-        except Exception as e:
-            logger.error(f"Error mapping path {path}: {e}")
+        except ValueError:
             return path
     
     def should_include_file(self, file_path: Path) -> bool:
@@ -133,7 +118,7 @@ class SummaryGenerator:
                         return False
                 except OSError as e:
                     logger.error(f"Error checking size of {file_path}: {e}")
-                    return True  # Allow for error handling test
+                    return False
                     
             return True
         except ValueError:
