@@ -121,7 +121,7 @@ max_file_size_kb = 1
     generator.generate_directory_summary(temp_project_dir)
     
     # Check that a warning was logged
-    assert any(
+    assert any([
         "Skipping large file" in record.message and "large.py" in record.message
         for record in caplog.records
-    )
+    ])
