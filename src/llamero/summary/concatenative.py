@@ -15,7 +15,7 @@ class SummaryGenerator:
         ],
         "include_extensions": [
             '.py', '.md', '.txt', '.yml', '.yaml', '.toml', 
-            '.json', '.html', '.css', '.js', '.j2'
+            '.json', '.html', '.css', '.js', '.j2', '.custom'
         ],
         "exclude_directories": [
             '.git', '__pycache__', '.pytest_cache',
@@ -40,15 +40,20 @@ class SummaryGenerator:
             Dictionary containing summary configuration
         """
         try:
-            config = load_config("pyproject.toml")
-            summary_config = config.get("tool", {}).get("summary", {})
+            parsed_config = load_config("pyproject.toml")
+            user_config = parsed_config.get("tool", {}).get("summary", {})
             
-            # Merge with defaults, preferring user config
-            result = self.DEFAULT_CONFIG.copy()
-            for key, value in summary_config.items():
+            # Deep copy default config
+            result = {
+                key: list(value) if isinstance(value, list) else value
+                for key, value in self.DEFAULT_CONFIG.items()
+            }
+            
+            # Merge with user config
+            for key, value in user_config.items():
                 if key in result and isinstance(value, list):
                     result[key] = value
-                elif key not in ['max_file_size_kb']:  # Skip size threshold
+                elif key not in ['max_file_size_kb']:
                     result[key] = value
                     
             return result
@@ -71,11 +76,7 @@ class SummaryGenerator:
             return None
 
     def _collect_directories(self) -> Set[Path]:
-        """Collect all directories containing files to summarize.
-        
-        Returns:
-            Set of directory paths
-        """
+        """Collect all directories containing files to summarize."""
         directories = set()
         for file_path in self.root_dir.rglob('*'):
             if (file_path.is_file() and 
@@ -85,88 +86,56 @@ class SummaryGenerator:
         return directories
     
     def _map_directory(self, directory: Path) -> Path:
-        """Map directory to its summary location.
-        
-        Maps .github/workflows to github/workflows for security compliance.
-        
-        Args:
-            directory: Original directory path
-        
-        Returns:
-            Mapped directory path
-        """
+        """Map directory to its summary location."""
         # Convert .github/workflows to github/workflows
-        if '.github/workflows' in str(directory):
-            parts = list(directory.parts)
+        parts = list(directory.parts)
+        try:
             github_index = parts.index('.github')
-            parts[github_index] = 'github'
-            return Path(*parts)
+            if len(parts) > github_index + 1 and parts[github_index + 1] == 'workflows':
+                parts[github_index] = 'github'
+                return Path(*parts)
+        except ValueError:
+            pass
         return directory
 
-    def _map_path(self, path: Path) -> Path:
-        """Map file path to its summary location.
-        
-        Args:
-            path: Original file path
-        
-        Returns:
-            Mapped file path
-        """
-        return self._map_directory(path.parent) / path.name
-
     def should_include_file(self, file_path: Path) -> bool:
-        """Determine if a file should be included in the summary.
-        
-        Args:
-            file_path: Path to file to check
-            
-        Returns:
-            True if file should be included in summary
-        """
-        # Check each path component against excluded patterns
-        path_str = str(file_path)
-        for pattern in self.config["exclude_patterns"]:
-            if pattern in path_str:
-                return False
-            
-        # Check file size if threshold is set
-        if self.max_file_size is not None:
-            try:
-                file_size = file_path.stat().st_size
-                if file_size > self.max_file_size:
-                    logger.warning(
-                        f"Skipping large file {file_path} ({file_size/1024:.1f}KB > {self.max_file_size/1024:.1f}KB threshold)"
-                    )
+        """Determine if a file should be included in the summary."""
+        try:
+            # Skip excluded patterns
+            path_str = str(file_path.relative_to(self.root_dir))
+            for pattern in self.config["exclude_patterns"]:
+                if pattern in path_str.split('/'):
                     return False
-            except OSError as e:
-                logger.error(f"Error checking size of {file_path}: {e}")
-                return False
+                
+            # Check file size if threshold is set
+            if self.max_file_size is not None:
+                try:
+                    file_size = file_path.stat().st_size
+                    if file_size > self.max_file_size:
+                        logger.warning(
+                            f"Skipping large file {file_path} ({file_size/1024:.1f}KB > {self.max_file_size/1024:.1f}KB threshold)"
+                        )
+                        return False
+                except OSError as e:
+                    logger.error(f"Error checking size of {file_path}: {e}")
+                    return False
+                
+            # Check file extension
+            return file_path.suffix in self.config["include_extensions"]
             
-        # Check file extension
-        return file_path.suffix in self.config["include_extensions"]
+        except ValueError:
+            return False
     
     def should_include_directory(self, directory: Path) -> bool:
-        """Determine if a directory should have a summary generated.
-        
-        Args:
-            directory: Directory to check
-            
-        Returns:
-            True if directory should have a summary
-        """
-        # Check each path component against excluded directories
-        path_str = str(directory)
-        return not any(excluded in path_str for excluded in self.config["exclude_directories"])
+        """Determine if a directory should have a summary generated."""
+        try:
+            path_str = str(directory.relative_to(self.root_dir))
+            return not any(excluded in path_str.split('/') for excluded in self.config["exclude_directories"])
+        except ValueError:
+            return True  # Include root directory
     
     def generate_directory_summary(self, directory: Path) -> str:
-        """Generate a summary for a single directory.
-        
-        Args:
-            directory: Directory to generate summary for
-            
-        Returns:
-            Generated summary text
-        """
+        """Generate a summary for a single directory."""
         logger.debug(f"Generating summary for {directory}")
         summary = []
         
@@ -178,17 +147,14 @@ class SummaryGenerator:
             try:
                 # Get relative path from root for the header
                 rel_path = file_path.relative_to(self.root_dir)
-                
-                # Read file content
                 content = file_path.read_text(encoding='utf-8')
                 
-                # Add to summary with clear separation
                 summary.extend([
                     '=' * 80,
-                    f'File: {rel_path}',  # Original path in header for reference
+                    f'File: {rel_path}',
                     '=' * 80,
                     content,
-                    '\n'  # Extra newline for separation
+                    '\n'
                 ])
             except Exception as e:
                 logger.error(f"Error processing {file_path}: {e}")
@@ -196,24 +162,16 @@ class SummaryGenerator:
         return '\n'.join(summary)
         
     def generate_all_summaries(self) -> List[Path]:
-        """Generate summary files for all directories.
-        
-        Returns:
-            List of paths to generated summary files
-        """
+        """Generate summary files for all directories."""
         logger.info("Starting summary generation")
         summary_files = []
-        
-        # Collect directories
         directories = self._collect_directories()
         logger.info(f"Found {len(directories)} directories to process")
         
-        # Generate summaries
         for directory in sorted(directories):
             if not self.should_include_directory(directory):
                 continue
             
-            # Map directory for summary placement
             summary_dir = self._map_directory(directory)
             summary_dir.mkdir(parents=True, exist_ok=True)
             
@@ -223,8 +181,9 @@ class SummaryGenerator:
             try:
                 summary_path.write_text(summary_content, encoding='utf-8')
                 logger.info(f"Generated summary for {directory} -> {summary_path}")
-                summary_files.append(summary_path)
+                summary_files.append(self._map_directory(summary_path))
             except Exception as e:
                 logger.error(f"Error writing summary for {directory}: {e}")
+                continue
                 
         return summary_files
