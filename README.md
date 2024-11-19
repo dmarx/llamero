@@ -78,7 +78,7 @@ When developing this project (or using it as a template), keep in mind these gui
    - Prefer many small files over few large files
    - Consider splitting when files require partial updates
    - Write tests alongside new features
-   - Run tests locally before pushing
+   - Syntax permitting, files should begin with a comment indicating that file's name and relative path from the project root
 ## LLM-Focused Summary System
 
 One of the most valuable features `llamero` offers is tooling to automate generation of various kinds of project/directory summaries that can be provided to an LLM for context.
