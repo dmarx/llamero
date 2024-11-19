@@ -8,6 +8,21 @@ from ..utils import load_config
 class SummaryGenerator:
     """Generate summary files for each directory in the project."""
     
+    DEFAULT_CONFIG = {
+        "exclude_patterns": [
+            '.git', '.gitignore', '.pytest_cache', '__pycache__',
+            'SUMMARY', '.coverage', '.env', '.venv', '.idea', '.vscode'
+        ],
+        "include_extensions": [
+            '.py', '.md', '.txt', '.yml', '.yaml', '.toml', 
+            '.json', '.html', '.css', '.js', '.j2'
+        ],
+        "exclude_directories": [
+            '.git', '__pycache__', '.pytest_cache',
+            '.venv', '.idea', '.vscode'
+        ]
+    }
+    
     def __init__(self, root_dir: str | Path):
         """Initialize generator with root directory.
         
@@ -26,10 +41,21 @@ class SummaryGenerator:
         """
         try:
             config = load_config("pyproject.toml")
-            return config.get("tool", {}).get("summary", {})
+            summary_config = config.get("tool", {}).get("summary", {})
+            
+            # Merge with defaults, preferring user config
+            result = self.DEFAULT_CONFIG.copy()
+            for key, value in summary_config.items():
+                if key in result and isinstance(value, list):
+                    result[key] = value
+                elif key not in ['max_file_size_kb']:  # Skip size threshold
+                    result[key] = value
+                    
+            return result
+            
         except FileNotFoundError:
             logger.warning("No pyproject.toml found, using default configuration")
-            return {}
+            return self.DEFAULT_CONFIG.copy()
             
     def _load_size_threshold(self) -> int | None:
         """Load max file size threshold from config.
@@ -37,8 +63,12 @@ class SummaryGenerator:
         Returns:
             Size threshold in bytes, or None if no threshold set
         """
-        kb_limit = self.config.get("max_file_size_kb")
-        return kb_limit * 1024 if kb_limit is not None else None
+        try:
+            config = load_config("pyproject.toml")
+            kb_limit = config.get("tool", {}).get("summary", {}).get("max_file_size_kb")
+            return kb_limit * 1024 if kb_limit is not None else None
+        except FileNotFoundError:
+            return None
 
     def _collect_directories(self) -> Set[Path]:
         """Collect all directories containing files to summarize.
@@ -93,21 +123,11 @@ class SummaryGenerator:
         Returns:
             True if file should be included in summary
         """
-        # Get configured patterns or use defaults
-        excluded_patterns = self.config.get("exclude_patterns", [
-            '.git', '.gitignore', '.pytest_cache', '__pycache__',
-            'SUMMARY', '.coverage', '.env', '.venv', '.idea', '.vscode'
-        ])
-        
-        # Get configured file extensions or use defaults
-        included_extensions = self.config.get("include_extensions", [
-            '.py', '.md', '.txt', '.yml', '.yaml', '.toml', 
-            '.json', '.html', '.css', '.js', '.j2'
-        ])
-        
-        # Skip excluded patterns
-        if any(part in excluded_patterns for part in file_path.parts):
-            return False
+        # Check each path component against excluded patterns
+        path_str = str(file_path)
+        for pattern in self.config["exclude_patterns"]:
+            if pattern in path_str:
+                return False
             
         # Check file size if threshold is set
         if self.max_file_size is not None:
@@ -122,8 +142,8 @@ class SummaryGenerator:
                 logger.error(f"Error checking size of {file_path}: {e}")
                 return False
             
-        # Only include files with specified extensions
-        return file_path.suffix in included_extensions
+        # Check file extension
+        return file_path.suffix in self.config["include_extensions"]
     
     def should_include_directory(self, directory: Path) -> bool:
         """Determine if a directory should have a summary generated.
@@ -134,13 +154,9 @@ class SummaryGenerator:
         Returns:
             True if directory should have a summary
         """
-        # Get configured excluded directories or use defaults
-        excluded_dirs = self.config.get("exclude_directories", [
-            '.git', '__pycache__', '.pytest_cache',
-            '.venv', '.idea', '.vscode'
-        ])
-        
-        return not any(part in excluded_dirs for part in directory.parts)
+        # Check each path component against excluded directories
+        path_str = str(directory)
+        return not any(excluded in path_str for excluded in self.config["exclude_directories"])
     
     def generate_directory_summary(self, directory: Path) -> str:
         """Generate a summary for a single directory.
