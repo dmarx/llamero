@@ -64,3 +64,6 @@ ignore_patterns = [
 "site.md.j2" = 6
 "structure.md.j2" = 7
 "todo.md.j2" = 999
+
+[tool.summary]
+max_file_size_kb = 1000  # Skip files larger than 1MB
