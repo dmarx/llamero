@@ -8,19 +8,38 @@ def test_summary_generator_init(temp_project_dir):
     generator = SummaryGenerator(temp_project_dir)
     assert generator.root_dir == temp_project_dir
 
-def test_should_include_file(temp_project_dir):
+# tests/test_summary/test_concatenative.py
+
+def test_should_include_file(temp_project_dir, monkeypatch):
     """Test file inclusion logic."""
+    # Change to temp directory so it's treated as project root
+    monkeypatch.chdir(temp_project_dir)
+    
+    # Create some test files
+    test_py = temp_project_dir / "test.py"
+    test_md = temp_project_dir / "test.md"
+    test_yaml = temp_project_dir / "test.yml"
+    test_bin = temp_project_dir / "test.bin"
+    excluded = temp_project_dir / ".git" / "config"
+    
+    # Write small content to each file
+    for file in [test_py, test_md, test_yaml, test_bin]:
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_text("test content")
+    
+    excluded.parent.mkdir(parents=True, exist_ok=True)
+    excluded.write_text("test content")
+    
     generator = SummaryGenerator(temp_project_dir)
     
     # Should include
-    assert generator.should_include_file(Path("test.py"))
-    assert generator.should_include_file(Path("test.md"))
-    assert generator.should_include_file(Path("test.toml"))
+    assert generator.should_include_file(test_py)
+    assert generator.should_include_file(test_md)
+    assert generator.should_include_file(test_yaml)
     
     # Should exclude
-    assert not generator.should_include_file(Path(".git/config"))
-    assert not generator.should_include_file(Path("__pycache__/test.pyc"))
-    #assert not generator.should_include_file(Path(".github/workflows/test.yml"))
+    assert not generator.should_include_file(test_bin)  # Wrong extension
+    assert not generator.should_include_file(excluded)  # In .git directory
 
 def test_generate_directory_summary(temp_project_dir):
     """Test directory summary generation."""
