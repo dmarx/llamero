@@ -198,17 +198,24 @@ def test_workflow_directory_mapping(test_files):
 
 def test_error_handling(test_files, caplog):
     """Test error handling for unreadable files and directories."""
+    caplog.set_level("ERROR")
+    
     # Create unreadable file
     bad_file = test_files / "unreadable.py"
     bad_file.write_text("test")
-    bad_file.chmod(0o000)
-    
-    generator = SummaryGenerator(test_files)
-    summary_files = generator.generate_all_summaries()
-    
-    # Check that error was logged but execution continued
-    assert any("Error" in record.message for record in caplog.records)
-    
-    # Clean up
-    bad_file.chmod(0o644)
-    bad_file.unlink()
+    try:
+        bad_file.chmod(0o000)  # Make file unreadable
+        
+        generator = SummaryGenerator(test_files)
+        generator.generate_directory_summary(test_files)
+        
+        # Check that error was logged
+        assert any(
+            record.levelname == "ERROR" and "Error processing" in record.message 
+            for record in caplog.records
+        ), "Expected error log message not found"
+        
+    finally:
+        # Ensure cleanup even if test fails
+        bad_file.chmod(0o644)
+        bad_file.unlink()
