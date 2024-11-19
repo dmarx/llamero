@@ -225,19 +225,23 @@ def test_error_handling(config_project_dir, caplog):
     bad_file.write_text("test")
     
     try:
-        bad_file.chmod(0o000)  # Make file unreadable
+        # Make file unreadable
+        bad_file.chmod(0o000)
         
         generator = SummaryGenerator(config_project_dir)
         generator.generate_directory_summary(config_project_dir)
         
-        # Check that error was logged
-        error_found = False
+        # Check for error message
         for record in caplog.records:
-            if record.levelname == "ERROR" and "Error processing" in record.message:
-                error_found = True
+            if (
+                record.levelname == "ERROR" 
+                and "Error processing" in record.message 
+                and "Permission denied" in record.message
+            ):
                 break
-        assert error_found, "Expected error log message not found"
-        
+        else:
+            pytest.fail("Expected error message not found in logs")
+            
     finally:
         # Clean up
         bad_file.chmod(0o644)
