@@ -100,6 +100,7 @@ def test_size_limit_warning_logging(temp_project_dir, monkeypatch, caplog):
     """Test that appropriate warnings are logged for skipped files."""
     # Change to temp directory so it's treated as project root
     monkeypatch.chdir(temp_project_dir)
+    caplog.set_level("WARNING")
     
     # Set up config with 1KB threshold
     config_content = """
