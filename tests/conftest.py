@@ -4,6 +4,60 @@ from pathlib import Path
 import tempfile
 import shutil
 import os
+import logging
+import sys
+from loguru import logger
+
+class InterceptHandler(logging.Handler):
+    def emit(self, record):
+        # Get corresponding Loguru level if it exists
+        try:
+            level = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        # Find caller from where originated the logged message
+        frame, depth = logging.currentframe(), 2
+        while frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back
+            depth += 1
+
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+@pytest.fixture(autouse=True)
+def setup_logging(caplog):
+    """Set up loguru to work with pytest's caplog."""
+    # Remove any existing handlers
+    logger.remove()
+    
+    # Add handler that intercepts everything
+    logger.add(
+        sys.stderr,
+        format="{time} | {level} | {module}:{function}:{line} - {message}",
+        level="DEBUG"
+    )
+    
+    # Attach loguru to pytest's caplog
+    handler_id = logger.add(
+        lambda msg: caplog.handler.emit(
+            logging.LogRecord(
+                name=msg.record["name"],
+                level=msg.record["level"].no,
+                pathname=msg.record["file"].name,
+                lineno=msg.record["line"],
+                msg=msg.record["message"],
+                args=(),
+                exc_info=msg.record["exception"]
+            )
+        ),
+        format="{message}",
+        level="DEBUG"
+    )
+    
+    yield
+    
+    # Clean up
+    logger.remove(handler_id)
 
 @pytest.fixture
 def temp_project_dir():
@@ -57,4 +111,3 @@ def mock_git_repo(temp_project_dir):
     os.system("git commit -m 'Initial commit'")
     yield temp_project_dir
     os.chdir(os.path.dirname(temp_project_dir))
-
