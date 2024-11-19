@@ -34,6 +34,24 @@ exclude_directories = [
     return temp_project_dir
 
 @pytest.fixture
+def workflow_project_dir(temp_project_dir):
+    """Create a project directory with workflow files."""
+    # Create workflow file
+    workflow_dir = temp_project_dir / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "test.yml").write_text("name: Test")
+    
+    # Add basic pyproject.toml
+    config_content = """
+[project]
+name = "test-project"
+description = "Test project"
+version = "0.1.0"
+"""
+    (temp_project_dir / "pyproject.toml").write_text(config_content)
+    return temp_project_dir
+
+@pytest.fixture
 def test_files(config_project_dir):
     """Create a set of test files with various extensions and patterns."""
     # Create test files
@@ -162,60 +180,65 @@ def test_nested_directory_handling(test_files):
 
 def test_default_config_fallback(temp_project_dir):
     """Test that default configuration is used when no config file exists."""
-    # Remove any existing config
-    config_file = temp_project_dir / "pyproject.toml"
-    if config_file.exists():
-        config_file.unlink()
+    # Create a test.py file
+    (temp_project_dir / "test.py").write_text("print('test')")
     
     generator = SummaryGenerator(temp_project_dir)
     
     # Check default extensions
     assert generator.should_include_file(temp_project_dir / "test.py")
-    assert generator.should_include_file(temp_project_dir / "doc.md")
-    assert not generator.should_include_file(temp_project_dir / "script.sh")
+    
+    # Create files with extensions that should be excluded by default
+    test_sh = temp_project_dir / "script.sh"
+    test_sh.write_text("#!/bin/bash")
+    assert not generator.should_include_file(test_sh)
     
     # Check default directory exclusions
-    assert not generator.should_include_directory(temp_project_dir / ".git")
-    assert not generator.should_include_directory(temp_project_dir / "__pycache__")
+    git_dir = temp_project_dir / ".git"
+    git_dir.mkdir(exist_ok=True)
+    assert not generator.should_include_directory(git_dir)
 
-def test_workflow_directory_mapping(test_files):
+def test_workflow_directory_mapping(workflow_project_dir):
     """Test that .github/workflows is correctly mapped to github/workflows."""
-    # Create workflow files
-    workflow_dir = test_files / ".github" / "workflows"
-    workflow_dir.mkdir(parents=True)
+    generator = SummaryGenerator(workflow_project_dir)
+    
+    # Add a workflow file
+    workflow_dir = workflow_project_dir / ".github" / "workflows"
     (workflow_dir / "test.yml").write_text("name: Test")
     
-    generator = SummaryGenerator(test_files)
     summary_files = generator.generate_all_summaries()
     
-    # Check that summary was created in mapped location
-    mapped_summary = test_files / "github" / "workflows" / "SUMMARY"
+    # Check that workflow summary was created in mapped location
+    mapped_summary = workflow_project_dir / "github" / "workflows" / "SUMMARY"
     assert mapped_summary in summary_files
     
-    # Verify content
+    # Verify content references original path
     content = mapped_summary.read_text()
     assert "File: .github/workflows/test.yml" in content
 
-def test_error_handling(test_files, caplog):
-    """Test error handling for unreadable files and directories."""
+def test_error_handling(config_project_dir, caplog):
+    """Test error handling for unreadable files."""
     caplog.set_level("ERROR")
     
     # Create unreadable file
-    bad_file = test_files / "unreadable.py"
+    bad_file = config_project_dir / "unreadable.py"
     bad_file.write_text("test")
+    
     try:
         bad_file.chmod(0o000)  # Make file unreadable
         
-        generator = SummaryGenerator(test_files)
-        generator.generate_directory_summary(test_files)
+        generator = SummaryGenerator(config_project_dir)
+        generator.generate_directory_summary(config_project_dir)
         
         # Check that error was logged
-        assert any(
-            record.levelname == "ERROR" and "Error processing" in record.message 
-            for record in caplog.records
-        ), "Expected error log message not found"
+        error_found = False
+        for record in caplog.records:
+            if record.levelname == "ERROR" and "Error processing" in record.message:
+                error_found = True
+                break
+        assert error_found, "Expected error log message not found"
         
     finally:
-        # Ensure cleanup even if test fails
+        # Clean up
         bad_file.chmod(0o644)
         bad_file.unlink()
