@@ -1,9 +1,8 @@
 # src/llamero/summary/concatenative.py
 """Core summary generation functionality."""
 from pathlib import Path
-from typing import List, Set, Optional
+from typing import List, Set
 from loguru import logger
-from ..utils import load_config, get_project_root
 
 class SummaryGenerator:
     """Generate summary files for each directory in the project."""
@@ -27,6 +26,7 @@ class SummaryGenerator:
     def __init__(self, root_dir: str | Path):
         """Initialize generator with root directory."""
         self.root_dir = Path(root_dir).resolve()
+        self.workflow_mapping = {}  # Track workflow directory mappings
         self._load_user_config()
         
     def _load_user_config(self) -> None:
@@ -34,6 +34,7 @@ class SummaryGenerator:
         try:
             config_path = self.root_dir / "pyproject.toml"
             if config_path.exists():
+                from ..utils import load_config
                 parsed_config = load_config(str(config_path))
                 user_config = parsed_config.get("tool", {}).get("summary", {})
             else:
@@ -57,24 +58,25 @@ class SummaryGenerator:
             self.config = self.DEFAULT_CONFIG.copy()
             self.max_file_size = self.config["max_file_size_kb"] * 1024
     
-    def _map_path_components(self, path: Path) -> Optional[Path]:
-        """Map path components according to rules.
-        
-        Args:
-            path: Path to map
-            
-        Returns:
-            Mapped path or None if path should be excluded
-        """
+    def _map_path_components(self, path: Path) -> Path:
+        """Map path components according to rules."""
         try:
             rel_path = path.resolve().relative_to(self.root_dir)
             parts = list(rel_path.parts)
             
             # Map .github/workflows to github/workflows
-            for i, part in enumerate(parts):
+            for i, part in enumerate(parts[:-1]):  # Don't check last part if it's a file
                 if part == '.github' and i + 1 < len(parts) and parts[i + 1] == 'workflows':
                     parts[i] = 'github'
-                    return self.root_dir / Path(*parts)
+                    mapped_path = self.root_dir / Path(*parts)
+                    if path.is_dir():
+                        self.workflow_mapping[path] = mapped_path
+                    return mapped_path
+            
+            # Check if this path's parent is a mapped workflow directory
+            parent = path.parent
+            if parent in self.workflow_mapping:
+                return self.workflow_mapping[parent] / path.name
             
             return path
             
@@ -84,6 +86,10 @@ class SummaryGenerator:
     def should_include_file(self, file_path: Path) -> bool:
         """Determine if a file should be included in the summary."""
         try:
+            # Special handling for workflow files
+            if '.github/workflows' in str(file_path):
+                return file_path.suffix in self.config["include_extensions"]
+            
             # Handle non-existent files (for error handling test)
             if not file_path.exists():
                 return True  # Allow non-existent files to trigger read errors later
@@ -117,13 +123,13 @@ class SummaryGenerator:
     def should_include_directory(self, directory: Path) -> bool:
         """Determine if a directory should have a summary generated."""
         try:
+            # Special handling for workflow directories
+            if '.github/workflows' in str(directory):
+                return True
+            
             # Get path relative to root
             rel_path = directory.resolve().relative_to(self.root_dir)
             path_parts = rel_path.parts
-            
-            # Check for workflow directory special case
-            if '.github/workflows' in str(rel_path):
-                return True
             
             # Check excluded directories
             return not any(
