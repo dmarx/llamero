@@ -107,5 +107,5 @@ exclude_directories = [
     '.venv',
     '.idea',
     '.vscode',
-    'data',
+    'data'
 ]
