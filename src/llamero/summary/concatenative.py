@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import List, Set
 from loguru import logger
+from ..utils import load_config
 
 class SummaryGenerator:
     """Generate summary files for each directory in the project."""
@@ -14,6 +15,20 @@ class SummaryGenerator:
             root_dir: Root directory to generate summaries for
         """
         self.root_dir = Path(root_dir)
+        self.max_file_size = self._load_size_threshold()
+        
+    def _load_size_threshold(self) -> int | None:
+        """Load max file size threshold from config.
+        
+        Returns:
+            Size threshold in bytes, or None if no threshold set
+        """
+        try:
+            config = load_config("pyproject.toml")
+            kb_limit = config.get("tool", {}).get("summary", {}).get("max_file_size_kb")
+            return kb_limit * 1024 if kb_limit is not None else None
+        except FileNotFoundError:
+            return None
 
     def _collect_directories(self) -> Set[Path]:
         """Collect all directories containing files to summarize.
@@ -78,6 +93,19 @@ class SummaryGenerator:
         if any(part in excluded_files for part in file_path.parts):
             return False
             
+        # Check file size if threshold is set
+        if self.max_file_size is not None:
+            try:
+                file_size = file_path.stat().st_size
+                if file_size > self.max_file_size:
+                    logger.warning(
+                        f"Skipping large file {file_path} ({file_size/1024:.1f}KB > {self.max_file_size/1024:.1f}KB threshold)"
+                    )
+                    return False
+            except OSError as e:
+                logger.error(f"Error checking size of {file_path}: {e}")
+                return False
+            
         # Only include text files
         text_extensions = {'.py', '.md', '.txt', '.yml', '.yaml', '.toml', 
                          '.json', '.html', '.css', '.js', '.j2'}
@@ -118,7 +146,7 @@ class SummaryGenerator:
                 continue
                 
             try:
-                # Get relative path from root for the header, maintaining .github in paths
+                # Get relative path from root for the header
                 rel_path = file_path.relative_to(self.root_dir)
                 
                 # Read file content
