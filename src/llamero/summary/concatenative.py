@@ -23,12 +23,12 @@ class SummaryGenerator:
         Returns:
             Size threshold in bytes, or None if no threshold set
         """
-        try:
-            config = load_config("pyproject.toml")
-            kb_limit = config.get("tool", {}).get("summary", {}).get("max_file_size_kb")
-            return kb_limit * 1024 if kb_limit is not None else None
-        except FileNotFoundError:
-            return None
+        #try:
+        config = load_config("pyproject.toml")
+        kb_limit = config.get("tool", {}).get("summary", {}).get("max_file_size_kb")
+        return kb_limit * 1024 if kb_limit is not None else None
+        #except FileNotFoundError:
+        #    return None
 
     def _collect_directories(self) -> Set[Path]:
         """Collect all directories containing files to summarize.
