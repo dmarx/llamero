@@ -42,8 +42,10 @@ def load_config(config_path: str) -> dict:
         #logger.error(f"Configuration file not found: {full_path}")
         raise FileNotFoundError(f"Configuration file not found: {full_path}")
 
-def commit_and_push(file_to_commit):
+def commit_and_push(files_to_commit: str|list, message = None):
     """Commit and push changes for a specific file"""
+    if isinstance(files_to_commit, str):
+        files_to_commit = [files_to_commit]
     try:
         # Configure Git for GitHub Actions
         subprocess.run(["git", "config", "--global", "user.name", "GitHub Action"], check=True)
@@ -54,9 +56,15 @@ def commit_and_push(file_to_commit):
         if not status.stdout.strip():
             logger.info(f"No changes to commit for {file_to_commit}")
             return
-        
-        subprocess.run(["git", "add", file_to_commit], check=True)
-        subprocess.run(["git", "commit", "-m", f"Update {file_to_commit}"], check=True)
+
+        for file_to_commit in files_to_commit:
+            subprocess.run(["git", "add", file_to_commit], check=True)
+        if message is None:
+            if len(files_to_commit) == 1:
+                message = f"Update {file_to_commit}"
+            else:
+                message = f"Updated {len(files_to_commit)} files."
+        subprocess.run(["git", "commit", "-m", message], check=True)
         subprocess.run(["git", "push"], check=True)
         
         logger.success(f"Changes to {file_to_commit} committed and pushed successfully")
