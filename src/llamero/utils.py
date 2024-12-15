@@ -42,10 +42,11 @@ def load_config(config_path: str) -> dict:
         #logger.error(f"Configuration file not found: {full_path}")
         raise FileNotFoundError(f"Configuration file not found: {full_path}")
 
-def commit_and_push(files_to_commit: str|list, message = None):
+def commit_and_push(files_to_commit: str|Path|list[str]|list[Path], message = None):
     """Commit and push changes for a specific file"""
-    if isinstance(files_to_commit, str):
+    if isinstance(files_to_commit, str) or isinstance(files_to_commit, Path):
         files_to_commit = [files_to_commit]
+    files_to_commit = [str(f) for f in files_to_commit] # Ensure Path objects are stringified
     try:
         # Configure Git for GitHub Actions
         subprocess.run(["git", "config", "--global", "user.name", "GitHub Action"], check=True)
