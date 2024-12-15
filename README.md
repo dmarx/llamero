@@ -129,6 +129,20 @@ ls SUMMARIES/
 ├── README.md
 ├── assets
 │   └── llamero-logo.jpg
+├── build
+│   └── lib
+│       └── llamero
+│           ├── __init__.py
+│           ├── __main__.py
+│           ├── dir2doc.py
+│           ├── summary
+│           │   ├── __init__.py
+│           │   ├── concatenative.py
+│           │   ├── python_files.py
+│           │   ├── python_signatures.py
+│           │   └── readmes.py
+│           ├── tree_generator.py
+│           └── utils.py
 ├── docs
 │   └── readme
 │       ├── base.md.j2
