@@ -12,7 +12,6 @@ dependencies = [
     "pytest>=7.0",
     "markdown2>=2.4.0",
 ]
-#dynamic = ["version"]
 readme = "README.md"
 license = {file = "LICENSE"}
 
@@ -20,25 +19,13 @@ license = {file = "LICENSE"}
 llamero = "llamero:__main__.cli"
 
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
-#[tool.hatch.version]
-#source = "vcs"
-
-#[tool.hatch.build.hooks.vcs]
-#version-file = "src/llamero/_version.py"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/llamero"]
-
-[tool.hatch.metadata]
-allow-direct-references = true
-
+# Your existing tool configurations below...
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-# addopts = "-v --cov=readme_generator --cov=summary_generator"
 
 [tool.readme.tree]
 ignore_patterns = [
@@ -73,9 +60,8 @@ ignore_patterns = [
 "todo.md.j2" = 999
 
 [tool.summary]
-max_file_size_kb = 500  # Skip files larger than 1MB
+max_file_size_kb = 500
 
-# File patterns to exclude
 exclude_patterns = [
     '.git',
     '.gitignore',
@@ -89,7 +75,6 @@ exclude_patterns = [
     '.vscode'
 ]
 
-# File extensions to include
 include_extensions = [
     '.py',
     '.md',
@@ -106,7 +91,6 @@ include_extensions = [
     '.j2'
 ]
 
-# Directories to exclude
 exclude_directories = [
     '.git',
     '__pycache__',
