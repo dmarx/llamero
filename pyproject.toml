@@ -1,5 +1,6 @@
 [project]
 name = "llamero"
+version = "0.2.1"
 description = "Tools to facilitate collaborating with LLMs"
 requires-python = ">=3.11"
 dependencies = [
@@ -11,7 +12,7 @@ dependencies = [
     "pytest>=7.0",
     "markdown2>=2.4.0",
 ]
-dynamic = ["version"]
+#dynamic = ["version"]
 readme = "README.md"
 license = {file = "LICENSE"}
 
@@ -22,11 +23,11 @@ llamero = "llamero:__main__.cli"
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
-[tool.hatch.version]
-source = "vcs"
+#[tool.hatch.version]
+#source = "vcs"
 
-[tool.hatch.build.hooks.vcs]
-version-file = "src/llamero/_version.py"
+#[tool.hatch.build.hooks.vcs]
+#version-file = "src/llamero/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/llamero"]
