@@ -50,15 +50,17 @@ def commit_and_push(files_to_commit: str|list, message = None):
         # Configure Git for GitHub Actions
         subprocess.run(["git", "config", "--global", "user.name", "GitHub Action"], check=True)
         subprocess.run(["git", "config", "--global", "user.email", "action@github.com"], check=True)
-        
-        # Check if there are any changes to commit
-        status = subprocess.run(["git", "status", "--porcelain", file_to_commit], capture_output=True, text=True, check=True)
-        if not status.stdout.strip():
-            logger.info(f"No changes to commit for {file_to_commit}")
-            return
 
+        changes = False
         for file_to_commit in files_to_commit:
-            subprocess.run(["git", "add", file_to_commit], check=True)
+            # Check if there are any changes to commit
+            status = subprocess.run(["git", "status", "--porcelain", file_to_commit], capture_output=True, text=True, check=True)
+            if status.stdout.strip():
+                changes=True
+                subprocess.run(["git", "add", file_to_commit], check=True)
+        if not changes:
+            logger.info(f"No changes to commit")
+            return
         if message is None:
             if len(files_to_commit) == 1:
                 message = f"Update {file_to_commit}"
