@@ -253,7 +253,7 @@ def test_excluded_directory_files(test_files):
     # Create a file with valid extension in excluded directory
     excluded_dir = test_files / "data"
     excluded_dir.mkdir(exist_ok=True)
-    test_file = excluded_dir / "test.py"
+    test_file = excluded_dir / "_excluded_test.py"
     test_file.write_text("print('should be excluded')")
     
     generator = SummaryGenerator(test_files)
@@ -265,5 +265,5 @@ def test_excluded_directory_files(test_files):
     summaries = generator.generate_all_summaries()
     for summary_file in summaries:
         content = summary_file.read_text()
-        assert "test.py" not in content
+        assert "_excluded_test.py" not in content
         assert "should be excluded" not in content
