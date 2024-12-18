@@ -109,15 +109,20 @@ class SummaryGenerator:
             rel_path = file_path.resolve().relative_to(self.root_dir)
             path_parts = rel_path.parts
             
+            # Check directory exclusions first - this should take precedence
+            for excluded_dir in self.config["exclude_directories"]:
+                if excluded_dir in path_parts:
+                    return False
+            
             # Check excluded patterns
             for pattern in self.config["exclude_patterns"]:
                 if any(part == pattern or part.startswith(pattern) for part in path_parts):
                     return False
             
-            # Check extension
+            # Check extension - only if file passes exclusion filters
             if file_path.suffix not in self.config["include_extensions"]:
                 return False
-            
+                
             # Check size if threshold is set
             if self.max_file_size is not None:
                 try:
