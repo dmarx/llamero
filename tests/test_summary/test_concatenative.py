@@ -27,7 +27,8 @@ include_extensions = [
 ]
 exclude_directories = [
     'excluded_dir',
-    'temp_dir'
+    'temp_dir',
+    'data'
 ]
 """
     (temp_project_dir / "pyproject.toml").write_text(config_content)
