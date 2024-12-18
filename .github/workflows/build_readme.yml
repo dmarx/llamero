@@ -2,6 +2,10 @@ name: Build README
 
 on:
   push:
+    paths:
+      - src/**
+      - docs/**
+      - assets/**
   workflow_dispatch:
 
 env:
