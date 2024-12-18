@@ -246,3 +246,23 @@ def test_error_handling(config_project_dir, caplog):
         # Clean up
         bad_file.chmod(0o644)
         bad_file.unlink()
+
+def test_excluded_directory_files(test_files):
+    """Test that files in excluded directories are excluded regardless of extension."""
+    # Create a file with valid extension in excluded directory
+    excluded_dir = test_files / "data"
+    excluded_dir.mkdir(exist_ok=True)
+    test_file = excluded_dir / "test.py"
+    test_file.write_text("print('should be excluded')")
+    
+    generator = SummaryGenerator(test_files)
+    
+    # File should be excluded because it's in an excluded directory
+    assert not generator.should_include_file(test_file)
+    
+    # Generate summary and verify file is not included
+    summaries = generator.generate_all_summaries()
+    for summary_file in summaries:
+        content = summary_file.read_text()
+        assert "test.py" not in content
+        assert "should be excluded" not in content
