@@ -47,30 +47,33 @@ def commit_and_push(files_to_commit: str|Path|list[str]|list[Path], message = No
     if isinstance(files_to_commit, str) or isinstance(files_to_commit, Path):
         files_to_commit = [files_to_commit]
     files_to_commit = [str(f) for f in files_to_commit] # Ensure Path objects are stringified
+    logger.info(f"files to commit: {files_to_commit}")
     try:
         # Configure Git for GitHub Actions
         subprocess.run(["git", "config", "--global", "user.name", "GitHub Action"], check=True)
         subprocess.run(["git", "config", "--global", "user.email", "action@github.com"], check=True)
 
-        changes = False
+        #changes = False
+        files_staged = []
         for file_to_commit in files_to_commit:
             # Check if there are any changes to commit
             status = subprocess.run(["git", "status", "--porcelain", file_to_commit], capture_output=True, text=True, check=True)
             if status.stdout.strip():
-                changes=True
+                #changes=True
                 subprocess.run(["git", "add", file_to_commit], check=True)
-        if not changes:
+                files_staged.append(file_to_commit)
+        if not files_staged:
             logger.info(f"No changes to commit")
             return
         if message is None:
-            if len(files_to_commit) == 1:
+            if len(files_staged) == 1:
                 message = f"Update {file_to_commit}"
             else:
-                message = f"Updated {len(files_to_commit)} files."
+                message = f"Updated {len(files_staged)} files."
         subprocess.run(["git", "commit", "-m", message], check=True)
         subprocess.run(["git", "push"], check=True)
         
-        logger.success(f"Changes to {file_to_commit} committed and pushed successfully")
+        logger.success(f"Changes to {files_staged} committed and pushed successfully")
     except subprocess.CalledProcessError as e:
         logger.error(f"Error during git operations: {e}")
         if "nothing to commit" in str(e):
