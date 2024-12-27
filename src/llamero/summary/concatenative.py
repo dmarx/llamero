@@ -172,9 +172,9 @@ class SummaryGenerator:
                     content = file_path.read_text(encoding='utf-8')
                     
                     summary.extend([
-                        '=' * 80,
+                        '---',
                         f'File: {rel_path}',
-                        '=' * 80,
+                        '---',
                         content,
                         '\n'
                     ])
