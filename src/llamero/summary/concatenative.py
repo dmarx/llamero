@@ -207,17 +207,17 @@ class SummaryGenerator:
                 if child_summary.exists():
                     content = child_summary.read_text()
                     if content:
-                        # Ensure content ends with exactly one blank line
-                        content = content.rstrip() + "\n\n"
+                        # Ensure content ends with newline
+                        content = content.rstrip() + "\n"
                         summaries.append(content)
         
         # Return None if no summaries found
         if not summaries:
             return None
             
-        # Join with no extra spacing (each summary already ends with \n\n)
-        return "".join(summaries).rstrip() + "\n"
-    
+        # Join with newline to maintain spacing
+        return "\n".join(summaries)
+     
     def generate_all_summaries(self) -> List[Path]:
         """Generate summary files for all directories, including aggregated summaries."""
         logger.info("Starting summary generation")
