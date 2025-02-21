@@ -78,7 +78,7 @@ def create_nested_summaries(root_dir: Path) -> dict[str, Path]:
             (dir_path / "SUMMARY").write_text("\n".join(summary_content))
     
     return paths
-
+    
 def test_aggregation_formatting(temp_project_dir):
     """Test that aggregated summaries maintain correct formatting."""
     paths = create_nested_summaries(temp_project_dir)
@@ -88,16 +88,17 @@ def test_aggregation_formatting(temp_project_dir):
     
     src_summary = (paths["src"] / "SUMMARY").read_text()
     
-    # Split on file markers but keep them
-    sections = src_summary.split("\n---\n")
+    # Check proper section formatting
+    sections = src_summary.split("---")
     for section in sections[1:]:  # Skip first empty section
-        # Each section should start with "File:" and end with at least one newline
+        # Each section should follow format: \nFile: path\n---\ncontent\n
         lines = section.splitlines()
-        assert lines[0].startswith("File: ")
-        assert section.endswith("\n")
+        assert lines[0].startswith("File: "), f"Section doesn't start with 'File: ': {lines[0]}"
         
-        # There should be proper separator after file path
-        assert "---" in section
+        # Check section structure
+        content = "\n".join(lines[1:])
+        assert content.strip(), "Section content is empty"
+        assert section.endswith("\n"), "Section doesn't end with newline"
 
 def test_basic_aggregation(temp_project_dir):
     """Test basic summary aggregation in a nested directory structure."""
