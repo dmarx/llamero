@@ -168,24 +168,25 @@ class SummaryGenerator:
                     continue
                     
                 try:
+                    # Get path relative to root always
                     rel_path = file_path.relative_to(self.root_dir)
                     content = file_path.read_text(encoding='utf-8')
                     
                     summary.extend([
-                        '---',
-                        f'File: {rel_path}',
-                        '---',
+                        "---",
+                        f"File: {rel_path}",
+                        "---",
                         content,
-                        '\n'
+                        "\n"
                     ])
                 except Exception as e:
                     logger.error(f"Error processing {file_path}: {e}")
                     
-            return '\n'.join(summary)
+            return "\n".join(summary)
         except Exception as e:
             logger.error(f"Error generating summary for {directory}: {e}")
             return ""
-    
+        
     def _generate_aggregated_summary(self, directory: Path) -> str | None:
         """
         Generate aggregated summary content from child SUMMARY files.
@@ -204,15 +205,19 @@ class SummaryGenerator:
             if child_dir.is_dir():
                 child_summary = child_dir / 'SUMMARY'
                 if child_summary.exists():
-                    summaries.append(child_summary.read_text())
+                    content = child_summary.read_text()
+                    if content:
+                        # Ensure content ends with exactly one blank line
+                        content = content.rstrip() + "\n\n"
+                        summaries.append(content)
         
         # Return None if no summaries found
         if not summaries:
             return None
             
-        # Join with double newlines for spacing
-        return '\n\n'.join(summaries)
-
+        # Join with no extra spacing (each summary already ends with \n\n)
+        return "".join(summaries).rstrip() + "\n"
+    
     def generate_all_summaries(self) -> List[Path]:
         """Generate summary files for all directories, including aggregated summaries."""
         logger.info("Starting summary generation")
