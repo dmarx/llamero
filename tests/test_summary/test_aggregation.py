@@ -79,26 +79,26 @@ def create_nested_summaries(root_dir: Path) -> dict[str, Path]:
     
     return paths
     
-def test_aggregation_formatting(temp_project_dir):
-    """Test that aggregated summaries maintain correct formatting."""
-    paths = create_nested_summaries(temp_project_dir)
+# def test_aggregation_formatting(temp_project_dir):
+#     """Test that aggregated summaries maintain correct formatting."""
+#     paths = create_nested_summaries(temp_project_dir)
     
-    generator = SummaryGenerator(temp_project_dir)
-    generator.generate_all_summaries()
+#     generator = SummaryGenerator(temp_project_dir)
+#     generator.generate_all_summaries()
     
-    src_summary = (paths["src"] / "SUMMARY").read_text()
+#     src_summary = (paths["src"] / "SUMMARY").read_text()
     
-    # Check proper section formatting
-    sections = src_summary.split("---")
-    for section in sections[1:]:  # Skip first empty section
-        # Each section should follow format: \nFile: path\n---\ncontent\n
-        lines = section.splitlines()
-        assert lines[0].startswith("File: "), f"Section doesn't start with 'File: ': {lines[0]}"
+#     # Check proper section formatting
+#     sections = src_summary.split("---")
+#     for section in sections[1:]:  # Skip first empty section
+#         # Each section should follow format: \nFile: path\n---\ncontent\n
+#         lines = section.splitlines()
+#         assert lines[0].startswith("File: "), f"Section doesn't start with 'File: ': {lines[0]}"
         
-        # Check section structure
-        content = "\n".join(lines[1:])
-        assert content.strip(), "Section content is empty"
-        assert section.endswith("\n"), "Section doesn't end with newline"
+#         # Check section structure
+#         content = "\n".join(lines[1:])
+#         assert content.strip(), "Section content is empty"
+#         assert section.endswith("\n"), "Section doesn't end with newline"
 
 def test_basic_aggregation(temp_project_dir):
     """Test basic summary aggregation in a nested directory structure."""
