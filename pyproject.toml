@@ -88,7 +88,8 @@ include_extensions = [
     '.js',
     '.ts',
     '.tsx',
-    '.j2'
+    '.j2',
+    '.gitkeep',
 ]
 
 exclude_directories = [

@@ -168,37 +168,71 @@ class SummaryGenerator:
                     continue
                     
                 try:
+                    # Get path relative to root always
                     rel_path = file_path.relative_to(self.root_dir)
                     content = file_path.read_text(encoding='utf-8')
                     
                     summary.extend([
-                        '---',
-                        f'File: {rel_path}',
-                        '---',
+                        "---",
+                        f"File: {rel_path}",
+                        "---",
                         content,
-                        '\n'
+                        "\n"
                     ])
                 except Exception as e:
                     logger.error(f"Error processing {file_path}: {e}")
                     
-            return '\n'.join(summary)
+            return "\n".join(summary)
         except Exception as e:
             logger.error(f"Error generating summary for {directory}: {e}")
             return ""
-    
+        
+    def _generate_aggregated_summary(self, directory: Path) -> str | None:
+        """
+        Generate aggregated summary content from child SUMMARY files.
+        Returns None if no child summaries exist.
+        
+        Args:
+            directory: Directory to generate aggregated summary for
+            
+        Returns:
+            Concatenated summary content or None if no summaries found
+        """
+        summaries = []
+        
+        # Collect all child SUMMARY contents
+        for child_dir in sorted(directory.iterdir()):
+            if child_dir.is_dir():
+                child_summary = child_dir / 'SUMMARY'
+                if child_summary.exists():
+                    content = child_summary.read_text()
+                    if content:
+                        # Ensure content ends with newline
+                        content = content.rstrip() + "\n"
+                        summaries.append(content)
+        
+        # Return None if no summaries found
+        if not summaries:
+            return None
+            
+        # Join with newline to maintain spacing
+        return "\n".join(summaries)
+     
     def generate_all_summaries(self) -> List[Path]:
-        """Generate summary files for all directories."""
+        """Generate summary files for all directories, including aggregated summaries."""
         logger.info("Starting summary generation")
         summary_files = []
         
         try:
+            # First, generate individual summaries as before
             directories = self._collect_directories()
             logger.info(f"Found {len(directories)} directories to process")
             
-            for directory in sorted(directories):
+            # Process directories bottom-up to ensure child summaries exist first
+            for directory in sorted(directories, key=lambda x: len(x.parts), reverse=True):
                 if not self.should_include_directory(directory):
                     continue
-                
+                    
                 # Map the directory path
                 mapped_dir = self._map_path_components(directory)
                 if mapped_dir:
@@ -210,7 +244,27 @@ class SummaryGenerator:
                         summary_path.write_text(summary_content)
                         logger.info(f"Generated summary for {directory} -> {summary_path}")
                         summary_files.append(summary_path)
+            
+            # Now generate aggregated summaries recursively up the tree
+            logger.info("Generating aggregated summaries")
+            processed_dirs = set()
+            
+            for directory in directories:
+                current = directory.parent
+                while current != self.root_dir.parent:  # Stop at parent of root
+                    if current not in processed_dirs and self.should_include_directory(current):
+                        mapped_dir = self._map_path_components(current)
+                        aggregate_content = self._generate_aggregated_summary(current)
+                        
+                        if aggregate_content:
+                            summary_path = mapped_dir / 'SUMMARY'
+                            summary_path.write_text(aggregate_content)
+                            logger.info(f"Generated aggregated summary for {current}")
+                            summary_files.append(summary_path)
+                            processed_dirs.add(current)
                     
+                    current = current.parent
+            
             return summary_files
             
         except Exception as e:
