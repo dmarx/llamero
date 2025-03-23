@@ -1,62 +1,39 @@
 # src/llamero/summary/concatenative.py
-"""Core summary generation functionality."""
+"""Core summary generation functionality with pathspec-based pattern matching."""
 from pathlib import Path
 from typing import List, Set
 from loguru import logger
+import pathspec
+from ..config import load_config, get_pattern_spec, should_include_path
 
 class SummaryGenerator:
     """Generate summary files for each directory in the project."""
-    
-    DEFAULT_CONFIG = {
-        "exclude_patterns": [
-            '.git', '.gitignore', '.pytest_cache', '__pycache__',
-            'SUMMARY', '.coverage', '.env', '.venv', '.idea', '.vscode'
-        ],
-        "include_extensions": [
-            '.py', '.md', '.txt', '.yml', '.yaml', '.toml', 
-            '.json', '.html', '.css', '.js', '.j2', '.custom'
-        ],
-        "exclude_directories": [
-            '.git', '__pycache__', '.pytest_cache',
-            '.venv', '.idea', '.vscode'
-        ],
-        "max_file_size_kb": 500  # Default max file size
-    }
     
     def __init__(self, root_dir: str | Path):
         """Initialize generator with root directory."""
         self.root_dir = Path(root_dir).resolve()
         self.workflow_mapping = {}  # Track workflow directory mappings
-        self._load_user_config()
+        self._load_config()
         
-    def _load_user_config(self) -> None:
-        """Load and merge user configuration with defaults."""
+    def _load_config(self) -> None:
+        """Load configuration from llamero config."""
         try:
-            config_path = self.root_dir / "pyproject.toml"
-            if config_path.exists():
-                from ..utils import load_config
-                parsed_config = load_config(str(config_path))
-                user_config = parsed_config.get("tool", {}).get("summary", {})
-            else:
-                user_config = {}
+            # Load from YAML config
+            config = load_config()
+            self.config = config.get("summary", {})
                 
-            # Start with defaults
-            self.config = self.DEFAULT_CONFIG.copy()
-            
-            # Update with user config
-            for key, value in user_config.items():
-                if key in self.config and isinstance(value, list):
-                    self.config[key] = value
-                else:
-                    self.config[key] = value
-                    
             # Set max file size
-            self.max_file_size = self.config.get("max_file_size_kb", 500) * 1024
+            self.max_file_size = self.config.get("max_file_size_kb", 1000) * 1024
+            
+            # Create pattern spec from exclude patterns
+            exclude_patterns = self.config.get("exclude_patterns", [".git/"])
+            self.pattern_spec = get_pattern_spec(exclude_patterns)
             
         except Exception as e:
-            logger.warning(f"Error loading config: {e}, using defaults")
-            self.config = self.DEFAULT_CONFIG.copy()
-            self.max_file_size = self.config["max_file_size_kb"] * 1024
+            logger.warning(f"Error loading config: {e}, using minimal defaults")
+            # Minimal defaults (just excluding .git)
+            self.pattern_spec = get_pattern_spec([".git/"])
+            self.max_file_size = 1000 * 1024  # 1000 KB default
 
     def _map_directory(self, directory: Path) -> Path:
         """Map directory for consistent handling of special paths like .github/workflows."""
@@ -97,42 +74,37 @@ class SummaryGenerator:
     def should_include_file(self, file_path: Path) -> bool:
         """Determine if a file should be included in the summary."""
         try:
-            # Special handling for workflow files
-            if '.github/workflows' in str(file_path):
-                return file_path.suffix in self.config["include_extensions"]
-            
-            # Handle non-existent files (for error handling test)
+            # Handle non-existent files
             if not file_path.exists():
-                return True  # Allow non-existent files to trigger read errors later
-            
-            # Get path relative to root
-            rel_path = file_path.resolve().relative_to(self.root_dir)
-            path_parts = rel_path.parts
-            
-            # Check directory exclusions first - this should take precedence
-            for excluded_dir in self.config["exclude_directories"]:
-                if excluded_dir in path_parts:
-                    return False
-            
-            # Check excluded patterns
-            for pattern in self.config["exclude_patterns"]:
-                if any(part == pattern or part.startswith(pattern) for part in path_parts):
-                    return False
-            
-            # Check extension - only if file passes exclusion filters
-            if file_path.suffix not in self.config["include_extensions"]:
+                return False
+                
+            # Check if path should be included based on pathspec
+            if not should_include_path(file_path, self.pattern_spec, self.root_dir):
                 return False
                 
             # Check size if threshold is set
             if self.max_file_size is not None:
                 try:
                     if file_path.stat().st_size > self.max_file_size:
+                        logger.debug(f"Excluding large file: {file_path} ({file_path.stat().st_size} bytes)")
                         return False
                 except OSError as e:
                     logger.error(f"Error checking size of {file_path}: {e}")
                     return False
                     
+            # Check if it's a binary file (simple heuristic)
+            try:
+                with open(file_path, 'rb') as f:
+                    chunk = f.read(1024)
+                    if b'\0' in chunk:  # If null bytes found, likely binary
+                        logger.debug(f"Excluding likely binary file: {file_path}")
+                        return False
+            except Exception as e:
+                logger.debug(f"Error checking if binary: {file_path}: {e}")
+                
+            # Default to inclusion
             return True
+            
         except ValueError:
             return False
     
@@ -142,16 +114,10 @@ class SummaryGenerator:
             # Special handling for workflow directories
             if '.github/workflows' in str(directory):
                 return True
+                
+            # Check if directory should be included based on pathspec
+            return should_include_path(directory, self.pattern_spec, self.root_dir)
             
-            # Get path relative to root
-            rel_path = directory.resolve().relative_to(self.root_dir)
-            path_parts = rel_path.parts
-            
-            # Check excluded directories
-            return not any(
-                excluded == part for excluded in self.config["exclude_directories"]
-                for part in path_parts
-            )
         except ValueError:
             # Include root directory
             return directory.resolve() == self.root_dir
@@ -169,7 +135,7 @@ class SummaryGenerator:
                     
                 try:
                     rel_path = file_path.relative_to(self.root_dir)
-                    content = file_path.read_text(encoding='utf-8')
+                    content = file_path.read_text(encoding='utf-8', errors='replace')
                     
                     summary.extend([
                         '---',
