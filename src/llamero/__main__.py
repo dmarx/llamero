@@ -53,7 +53,7 @@ def build_template(
     )
 
 
-def tree(output: str | None = None, commit: bool = True) -> None:
+def tree(root=".", output: str | None = None, commit: bool = True) -> None:
     """
     Generate a tree representation of the project structure
     
@@ -61,7 +61,7 @@ def tree(output: str | None = None, commit: bool = True) -> None:
         output: Optional output path. Defaults to docs/readme/sections/structure.md.j2
         commit: Whether to commit changes to git
     """
-    tree_content = generate_tree(".")
+    tree_content = generate_tree(root)
     
     if not tree_content:
         logger.warning("No tree structure generated - check ignore patterns in config")
@@ -141,10 +141,18 @@ class Summarize:
         generated_files = self._python.generate_summaries()
         self._finish(generated_files)
 
+    def tree(self):
+        """Generates a tree  of the project structure"""
+        tree(root=self.root, output="TREE.md", commit=False)
+        self._finish(["TREE.md"])
+
+    
     def all(self):
         """Generates all supported summaries"""
         self.main()
         self.python()
+        self.tree()
+    
 
 
 def cli():
