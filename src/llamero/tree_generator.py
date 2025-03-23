@@ -1,62 +1,38 @@
+# src/llamero/tree_generator.py
 from pathlib import Path
 from loguru import logger
 from tree_format import format_tree
-from .utils import load_config
+from .config import load_config, get_pattern_spec, should_include_path
 
-
-def should_include_path(path: Path, config: dict) -> bool:
-    """
-    Determines if a path should be included based on config ignore patterns.
-    Matches path components exactly against ignore patterns.
-    
-    Args:
-        path: Path to check
-        config: Config dict containing ignore patterns under tool.readme.tree.ignore_patterns
-        
-    Returns:
-        True if path should be included, False if it matches any ignore pattern
-    """
-    ignore_patterns = config.get("tool", {}).get("readme", {}).get("tree", {}).get("ignore_patterns", [])
-    
-    # Convert path to parts for matching
-    parts = path.parts
-    if not parts:  # Handle empty path
-        return True
-        
-    for pattern in ignore_patterns:
-        # Handle file extension patterns (e.g. *.pyc)
-        if pattern.startswith('*'):
-            if str(path).endswith(pattern[1:]):
-                return False
-        # Handle directory/file name patterns
-        elif pattern in parts or (pattern == str(path.name)):
-            return False
-    return True
-
-def node_to_tree(path: Path, config: dict) -> tuple[str, list] | None:
+def node_to_tree(path: Path, pattern_spec, root_dir: Path) -> tuple[str, list] | None:
     """
     Recursively converts a directory path to a tree structure.
-    Filters out empty directories except for essential ones like 'docs' and 'src'.
+    Filters out excluded paths and empty directories (except for essential ones).
     
     Args:
         path: Directory or file path to convert
-        config: Config dict containing ignore patterns
+        pattern_spec: pathspec.PathSpec object for pattern matching
+        root_dir: Root directory for relative path calculation
         
     Returns:
         Tuple of (node_name, child_nodes) or None if path should be excluded
     """
-    if not should_include_path(path, config):
+    # Check if path should be included
+    if not should_include_path(path, pattern_spec, root_dir):
         return None
         
+    # Handle files
     if path.is_file():
         return path.name, []
         
+    # Process directory children
     children = [
         node for child in sorted(path.iterdir())
-        if (node := node_to_tree(child, config)) is not None
+        if (node := node_to_tree(child, pattern_spec, root_dir)) is not None
     ]
     
-    if not children and path.name not in {'docs', 'src'}:
+    # Keep essential directories even if empty
+    if not children and path.name not in {'docs', 'src', 'tests'}:
         return None
         
     return path.name, children
@@ -64,7 +40,7 @@ def node_to_tree(path: Path, config: dict) -> tuple[str, list] | None:
 def generate_tree(root_dir: str = ".") -> str:
     """
     Generates a formatted directory tree string starting from root_dir.
-    Handles missing config files and sections gracefully.
+    Uses pathspec for gitignore-style pattern matching.
     
     Args:
         root_dir: Root directory to start tree generation from
@@ -72,14 +48,19 @@ def generate_tree(root_dir: str = ".") -> str:
     Returns:
         Formatted string representation of the directory tree
     """
-    try:
-        config = load_config("pyproject.toml")
-    except (FileNotFoundError, KeyError):
-        config = {"tool": {"readme": {"tree": {"ignore_patterns": []}}}}
-        logger.warning("Config file or sections missing, proceeding with no ignore patterns")
+    root_path = Path(root_dir).resolve()
     
-    root_path = Path(root_dir)
-    tree_root = node_to_tree(root_path, config)
+    try:
+        # Use new configuration system
+        config = load_config()
+        exclude_patterns = config.get('tree', {}).get('exclude_patterns', [".git/"])
+        pattern_spec = get_pattern_spec(exclude_patterns)
+        logger.debug(f"Using {len(exclude_patterns)} exclude patterns for tree generation")
+    except Exception as e:
+        logger.warning(f"Error loading config: {e}, proceeding with minimal defaults")
+        pattern_spec = get_pattern_spec([".git/"])
+    
+    tree_root = node_to_tree(root_path, pattern_spec, root_path)
     
     if tree_root is None:
         return ""
