@@ -135,6 +135,7 @@ ls SUMMARIES/
 │           ├── __init__.py
 │           ├── __main__.py
 │           ├── dir2doc.py
+│           ├── process_task.py
 │           ├── summary
 │           │   ├── __init__.py
 │           │   ├── concatenative.py
@@ -159,6 +160,7 @@ ls SUMMARIES/
 │       ├── __init__.py
 │       ├── __main__.py
 │       ├── dir2doc.py
+│       ├── process_task.py
 │       ├── summary
 │       │   ├── __init__.py
 │       │   ├── concatenative.py
