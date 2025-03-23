@@ -134,6 +134,7 @@ ls SUMMARIES/
 │       └── llamero
 │           ├── __init__.py
 │           ├── __main__.py
+│           ├── config.py
 │           ├── dir2doc.py
 │           ├── summary
 │           │   ├── __init__.py
@@ -158,6 +159,7 @@ ls SUMMARIES/
 │   └── llamero
 │       ├── __init__.py
 │       ├── __main__.py
+│       ├── config.py
 │       ├── dir2doc.py
 │       ├── summary
 │       │   ├── __init__.py
