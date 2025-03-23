@@ -149,9 +149,10 @@ class Summarize:
     
     def all(self):
         """Generates all supported summaries"""
+        self.tree() # generate first so it doesn't include summary files
         self.main()
         self.python()
-        self.tree()
+        
     
 
 
