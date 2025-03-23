@@ -1,0 +1,61 @@
+---
+File: src/llamero.egg-info/SOURCES.txt
+---
+LICENSE
+README.md
+pyproject.toml
+src/llamero/__init__.py
+src/llamero/__main__.py
+src/llamero/dir2doc.py
+src/llamero/tree_generator.py
+src/llamero/utils.py
+src/llamero.egg-info/PKG-INFO
+src/llamero.egg-info/SOURCES.txt
+src/llamero.egg-info/dependency_links.txt
+src/llamero.egg-info/entry_points.txt
+src/llamero.egg-info/requires.txt
+src/llamero.egg-info/top_level.txt
+src/llamero/summary/__init__.py
+src/llamero/summary/concatenative.py
+src/llamero/summary/python_files.py
+src/llamero/summary/python_signatures.py
+src/llamero/summary/readmes.py
+tests/test_dir2doc.py
+tests/test_tree_generator.py
+tests/test_utils.py
+
+
+---
+File: src/llamero.egg-info/dependency_links.txt
+---
+
+
+
+
+---
+File: src/llamero.egg-info/entry_points.txt
+---
+[console_scripts]
+llamero = llamero:__main__.cli
+
+
+
+---
+File: src/llamero.egg-info/requires.txt
+---
+Jinja2>=3.1.2
+tomli>=2.0.1
+loguru>=0.7.0
+fire>=0.5.0
+tree-format>=0.1.2
+pytest>=7.0
+markdown2>=2.4.0
+
+
+
+---
+File: src/llamero.egg-info/top_level.txt
+---
+llamero
+
+

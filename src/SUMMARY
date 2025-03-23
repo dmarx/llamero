@@ -1,0 +1,1244 @@
+---
+File: src/llamero/__init__.py
+---
+
+
+
+
+---
+File: src/llamero/__main__.py
+---
+import fire
+from loguru import logger
+from pathlib import Path
+
+from .summary.concatenative import SummaryGenerator
+from .summary.python_files import PythonSummariesGenerator
+from .tree_generator import generate_tree
+from .dir2doc import compile_template_dir
+from .utils import commit_and_push, commit_and_push_to_branch, get_project_root, load_config
+
+
+def build_template(
+    template_dir: str | Path, 
+    output_path: str | Path | None = None,
+    variables: dict | None = None,
+    commit: bool = True
+) -> None:
+    """
+    Build a document from a template directory
+    
+    Args:
+        template_dir: Path to template directory
+        output_path: Optional explicit output path. If None, uses directory name
+        variables: Optional variables to pass to template rendering
+        commit: Whether to commit changes to git
+    """
+    template_path = Path(template_dir)
+    if not template_path.is_absolute():
+        template_path = get_project_root() / template_path
+        
+    try:
+        config = load_config("pyproject.toml")
+        # Get section order from config if this is a readme template
+        if template_path.name == "readme":
+            order_config = config.get("tool", {}).get("readme", {}).get("sections", {}).get("order", {})
+        else:
+            order_config = None
+    except FileNotFoundError:
+        logger.warning("No pyproject.toml found, proceeding without section ordering")
+        order_config = None
+        
+    if output_path:
+        output_path = Path(output_path)
+        if not output_path.is_absolute():
+            output_path = get_project_root() / output_path
+            
+    compile_template_dir(
+        template_dir=template_path,
+        output_path=output_path,
+        variables=variables,
+        order_config=order_config,
+        commit=commit
+    )
+
+
+def tree(output: str | None = None, commit: bool = True) -> None:
+    """
+    Generate a tree representation of the project structure
+    
+    Args:
+        output: Optional output path. Defaults to docs/readme/sections/structure.md.j2
+        commit: Whether to commit changes to git
+    """
+    tree_content = generate_tree(".")
+    
+    if not tree_content:
+        logger.warning("No tree structure generated - check ignore patterns in config")
+        return
+        
+    if output is None:
+        # Default to readme section template
+        output = "docs/readme/sections/structure.md.j2"
+    
+    output_path = Path(output)
+    if not output_path.is_absolute():
+        output_path = get_project_root() / output_path
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+    content = [
+        "## Project Structure",
+        "",
+        "```",
+        tree_content,
+        "```",
+        ""
+    ]
+    
+    output_path.write_text("\n".join(content))
+    logger.info(f"Tree structure written to {output_path}")
+    
+    if commit:
+        commit_and_push(output_path)
+
+def readme(commit: bool = True) -> None:
+    """
+    Generate the project README
+    
+    This is a convenience command that:
+    1. Generates the project tree
+    2. Builds the README from templates
+    
+    Args:
+        commit: Whether to commit changes to git
+    """
+    logger.info("Generating project tree...")
+    # TODO: if these functions return the names of files modified/created, we can 
+    # pass them to commit_and_push once instead of committing multiple times per
+    # update
+    tree(commit=commit)
+    
+    logger.info("Building README from templates...")
+    template_dir = get_project_root() / 'docs/readme'
+    build_template(template_dir=template_dir, commit=commit)
+    
+    logger.info("README generation complete")
+
+
+class Summarize:
+    """Generate project summaries"""
+    
+    def __init__(self, root: str | Path ='.'):
+        self.root = root
+        self._concatenative = SummaryGenerator(self.root)
+        self._python = PythonSummariesGenerator(self.root)
+
+    def _finish(self, files: list[str|Path] ):
+        commit_and_push_to_branch(
+            message="Update directory summaries and special summaries",
+            branch="summaries",
+            paths=files,
+            force=True
+        )
+
+    def main(self):
+        """Generates concatenative summaries"""
+        generated_files = self._concatenative.generate_all_summaries()
+        self._finish(generated_files)
+
+    def python(self):
+        """Generates summaries for python code"""
+        generated_files = self._python.generate_summaries()
+        self._finish(generated_files)
+
+    def all(self):
+        """Generates all supported summaries"""
+        self.main()
+        self.python()
+
+
+def cli():
+    fire.Fire({
+        'build_template': build_template,
+        'tree': tree,
+        'readme': readme,
+        'summarize': Summarize
+    })
+
+if __name__ == "__main__":
+    cli()
+
+
+
+---
+File: src/llamero/dir2doc.py
+---
+from pathlib import Path
+from typing import Dict
+from loguru import logger
+from jinja2 import Environment, FileSystemLoader, TemplateNotFound
+from .utils import load_config, get_project_root, commit_and_push
+
+def collect_section_templates(sections_dir: Path, order_config: dict | None = None) -> list[str]:
+    """
+    Collect and order section templates from a directory.
+    
+    Args:
+        sections_dir: Directory containing section templates
+        order_config: Optional mapping of template names to order values from config
+        
+    Returns:
+        List of template names in correct order
+    """
+    templates = []
+    for file in sections_dir.glob("*.j2"):
+        if not order_config or file.name in order_config:
+            templates.append(file.name)
+    
+    return sorted(templates, key=lambda x: order_config.get(x, 500) if order_config else x)
+
+def compile_template_dir(
+    template_dir: Path,
+    output_path: Path | None = None,
+    variables: Dict | None = None,
+    order_config: Dict | None = None,
+    commit: bool = True
+) -> None:
+    """
+    Compile a directory of templates into a single output file.
+    
+    Args:
+        template_dir: Path to template directory
+        output_path: Optional explicit output path. If None, uses directory name
+        variables: Optional variables to pass to template rendering
+        order_config: Optional dictionary defining template ordering
+        commit: Whether to commit and push changes
+    """
+    project_root = get_project_root()
+    logger.debug(f"Project root identified as: {project_root}")
+    
+    # Ensure template_dir is absolute
+    template_dir = template_dir if template_dir.is_absolute() else project_root / template_dir
+    logger.debug(f"Using template directory: {template_dir}")
+    
+    # Verify template directory structure
+    if not template_dir.exists():
+        raise ValueError(f"Template directory not found: {template_dir}")
+    
+    base_template = template_dir / 'base.md.j2'
+    sections_dir = template_dir / 'sections'
+    
+    logger.debug(f"Looking for base template at: {base_template}")
+    logger.debug(f"Looking for sections directory at: {sections_dir}")
+    
+    if not sections_dir.exists():
+        raise ValueError(f"Sections directory not found: {sections_dir}")
+    
+    # Determine output path if not specified
+    if output_path is None:
+        output_name = template_dir.name.upper() + '.md'  # e.g. readme -> README.md
+        output_path = project_root / output_name
+    
+    logger.info(f"Compiling templates from {template_dir} to {output_path}")
+    
+    # Load default variables from project config if none provided
+    if variables is None:
+        logger.info("Loading configurations")
+        project_config = load_config("pyproject.toml")
+        variables = {
+            'project': project_config['project'],
+            'config': project_config.get('tool', {}).get(template_dir.name, {})
+        }
+    
+    # Collect and order templates
+    ordered_templates = collect_section_templates(sections_dir, order_config)
+    logger.info(f"Found {len(ordered_templates)} templates in order: {ordered_templates}")
+    
+    # Set up Jinja environment
+    logger.info("Setting up Jinja2 environment")
+    env = Environment(
+        loader=FileSystemLoader(str(template_dir)),
+        trim_blocks=True,
+        lstrip_blocks=True
+    )
+    
+    # Add ordered templates to variables
+    variables['templates'] = ordered_templates
+    
+    try:
+        if base_template.exists():
+            logger.info(f"Found base template, attempting to render")
+            template = env.get_template('base.md.j2')
+            output = template.render(**variables)
+            logger.info("Successfully rendered base template")
+        else:
+            logger.warning(f"No base template found at {base_template}, falling back to section concatenation")
+            raise TemplateNotFound('base.md.j2')
+            
+    except Exception as e:
+        logger.warning(f"Could not use base template ({str(e)}), concatenating sections instead")
+        logger.info(f"Processing {len(ordered_templates)} section templates")
+        
+        sections = []
+        for template_name in ordered_templates:
+            try:
+                template = env.get_template(f"sections/{template_name}")
+                sections.append(template.render(**variables))
+            except Exception as template_error:
+                logger.error(f"Error rendering template {template_name}: {template_error}")
+        
+        output = '\n\n'.join(sections)
+    
+    logger.debug(f"Writing output to: {output_path}")
+    output_path.write_text(output)
+    
+    if commit:
+        logger.info("Committing changes")
+        commit_and_push(output_path)
+
+
+
+---
+File: src/llamero/summary/__init__.py
+---
+
+
+
+
+---
+File: src/llamero/summary/concatenative.py
+---
+# src/llamero/summary/concatenative.py
+"""Core summary generation functionality."""
+from pathlib import Path
+from typing import List, Set
+from loguru import logger
+
+class SummaryGenerator:
+    """Generate summary files for each directory in the project."""
+    
+    DEFAULT_CONFIG = {
+        "exclude_patterns": [
+            '.git', '.gitignore', '.pytest_cache', '__pycache__',
+            'SUMMARY', '.coverage', '.env', '.venv', '.idea', '.vscode'
+        ],
+        "include_extensions": [
+            '.py', '.md', '.txt', '.yml', '.yaml', '.toml', 
+            '.json', '.html', '.css', '.js', '.j2', '.custom'
+        ],
+        "exclude_directories": [
+            '.git', '__pycache__', '.pytest_cache',
+            '.venv', '.idea', '.vscode'
+        ],
+        "max_file_size_kb": 500  # Default max file size
+    }
+    
+    def __init__(self, root_dir: str | Path):
+        """Initialize generator with root directory."""
+        self.root_dir = Path(root_dir).resolve()
+        self.workflow_mapping = {}  # Track workflow directory mappings
+        self._load_user_config()
+        
+    def _load_user_config(self) -> None:
+        """Load and merge user configuration with defaults."""
+        try:
+            config_path = self.root_dir / "pyproject.toml"
+            if config_path.exists():
+                from ..utils import load_config
+                parsed_config = load_config(str(config_path))
+                user_config = parsed_config.get("tool", {}).get("summary", {})
+            else:
+                user_config = {}
+                
+            # Start with defaults
+            self.config = self.DEFAULT_CONFIG.copy()
+            
+            # Update with user config
+            for key, value in user_config.items():
+                if key in self.config and isinstance(value, list):
+                    self.config[key] = value
+                else:
+                    self.config[key] = value
+                    
+            # Set max file size
+            self.max_file_size = self.config.get("max_file_size_kb", 500) * 1024
+            
+        except Exception as e:
+            logger.warning(f"Error loading config: {e}, using defaults")
+            self.config = self.DEFAULT_CONFIG.copy()
+            self.max_file_size = self.config["max_file_size_kb"] * 1024
+
+    def _map_directory(self, directory: Path) -> Path:
+        """Map directory for consistent handling of special paths like .github/workflows."""
+        # Ensure we have a Path object
+        directory = Path(directory)
+        
+        # If it's already absolute and under root_dir, make it relative first
+        if directory.is_absolute():
+            try:
+                directory = directory.relative_to(self.root_dir)
+            except ValueError:
+                pass
+        
+        parts = list(directory.parts)
+        
+        # Handle .github/workflows mapping
+        for i, part in enumerate(parts[:-1]):  # Don't check last part if it's a file
+            if part == '.github' and i + 1 < len(parts) and parts[i + 1] == 'workflows':
+                parts[i] = 'github'
+                # If the original path was absolute, make result absolute
+                if directory.is_absolute():
+                    return self.root_dir / Path(*parts)
+                return Path(*parts)
+        
+        # Return original path if no mapping needed
+        return directory
+    
+    def _map_path_components(self, path: Path) -> Path:
+        """Map path components according to rules."""
+        mapped = self._map_directory(path)
+        
+        # If the mapped path is relative and we're generating files, make it absolute
+        if not mapped.is_absolute() and self.root_dir:
+            return self.root_dir / mapped
+        
+        return mapped
+    
+    def should_include_file(self, file_path: Path) -> bool:
+        """Determine if a file should be included in the summary."""
+        try:
+            # Special handling for workflow files
+            if '.github/workflows' in str(file_path):
+                return file_path.suffix in self.config["include_extensions"]
+            
+            # Handle non-existent files (for error handling test)
+            if not file_path.exists():
+                return True  # Allow non-existent files to trigger read errors later
+            
+            # Get path relative to root
+            rel_path = file_path.resolve().relative_to(self.root_dir)
+            path_parts = rel_path.parts
+            
+            # Check directory exclusions first - this should take precedence
+            for excluded_dir in self.config["exclude_directories"]:
+                if excluded_dir in path_parts:
+                    return False
+            
+            # Check excluded patterns
+            for pattern in self.config["exclude_patterns"]:
+                if any(part == pattern or part.startswith(pattern) for part in path_parts):
+                    return False
+            
+            # Check extension - only if file passes exclusion filters
+            if file_path.suffix not in self.config["include_extensions"]:
+                return False
+                
+            # Check size if threshold is set
+            if self.max_file_size is not None:
+                try:
+                    if file_path.stat().st_size > self.max_file_size:
+                        return False
+                except OSError as e:
+                    logger.error(f"Error checking size of {file_path}: {e}")
+                    return False
+                    
+            return True
+        except ValueError:
+            return False
+    
+    def should_include_directory(self, directory: Path) -> bool:
+        """Determine if a directory should have a summary generated."""
+        try:
+            # Special handling for workflow directories
+            if '.github/workflows' in str(directory):
+                return True
+            
+            # Get path relative to root
+            rel_path = directory.resolve().relative_to(self.root_dir)
+            path_parts = rel_path.parts
+            
+            # Check excluded directories
+            return not any(
+                excluded == part for excluded in self.config["exclude_directories"]
+                for part in path_parts
+            )
+        except ValueError:
+            # Include root directory
+            return directory.resolve() == self.root_dir
+    
+    def generate_directory_summary(self, directory: Path) -> str:
+        """Generate a summary for a single directory."""
+        logger.debug(f"Generating summary for {directory}")
+        summary = []
+        
+        try:
+            # Process all files in the directory
+            for file_path in sorted(directory.rglob('*')):
+                if not file_path.is_file() or not self.should_include_file(file_path):
+                    continue
+                    
+                try:
+                    # Get path relative to root always
+                    rel_path = file_path.relative_to(self.root_dir)
+                    content = file_path.read_text(encoding='utf-8')
+                    
+                    summary.extend([
+                        "---",
+                        f"File: {rel_path}",
+                        "---",
+                        content,
+                        "\n"
+                    ])
+                except Exception as e:
+                    logger.error(f"Error processing {file_path}: {e}")
+                    
+            return "\n".join(summary)
+        except Exception as e:
+            logger.error(f"Error generating summary for {directory}: {e}")
+            return ""
+        
+    def _generate_aggregated_summary(self, directory: Path) -> str | None:
+        """
+        Generate aggregated summary content from child SUMMARY files.
+        Returns None if no child summaries exist.
+        
+        Args:
+            directory: Directory to generate aggregated summary for
+            
+        Returns:
+            Concatenated summary content or None if no summaries found
+        """
+        summaries = []
+        
+        # Collect all child SUMMARY contents
+        for child_dir in sorted(directory.iterdir()):
+            if child_dir.is_dir():
+                child_summary = child_dir / 'SUMMARY'
+                if child_summary.exists():
+                    content = child_summary.read_text()
+                    if content:
+                        # Ensure content ends with newline
+                        content = content.rstrip() + "\n"
+                        summaries.append(content)
+        
+        # Return None if no summaries found
+        if not summaries:
+            return None
+            
+        # Join with newline to maintain spacing
+        return "\n".join(summaries)
+     
+    def generate_all_summaries(self) -> List[Path]:
+        """Generate summary files for all directories, including aggregated summaries."""
+        logger.info("Starting summary generation")
+        summary_files = []
+        
+        try:
+            # First, generate individual summaries as before
+            directories = self._collect_directories()
+            logger.info(f"Found {len(directories)} directories to process")
+            
+            # Process directories bottom-up to ensure child summaries exist first
+            for directory in sorted(directories, key=lambda x: len(x.parts), reverse=True):
+                if not self.should_include_directory(directory):
+                    continue
+                    
+                # Map the directory path
+                mapped_dir = self._map_path_components(directory)
+                if mapped_dir:
+                    mapped_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    summary_content = self.generate_directory_summary(directory)
+                    if summary_content:  # Only create summary if there's content
+                        summary_path = mapped_dir / 'SUMMARY'
+                        summary_path.write_text(summary_content)
+                        logger.info(f"Generated summary for {directory} -> {summary_path}")
+                        summary_files.append(summary_path)
+            
+            # Now generate aggregated summaries recursively up the tree
+            logger.info("Generating aggregated summaries")
+            processed_dirs = set()
+            
+            for directory in directories:
+                current = directory.parent
+                while current != self.root_dir.parent:  # Stop at parent of root
+                    if current not in processed_dirs and self.should_include_directory(current):
+                        mapped_dir = self._map_path_components(current)
+                        aggregate_content = self._generate_aggregated_summary(current)
+                        
+                        if aggregate_content:
+                            summary_path = mapped_dir / 'SUMMARY'
+                            summary_path.write_text(aggregate_content)
+                            logger.info(f"Generated aggregated summary for {current}")
+                            summary_files.append(summary_path)
+                            processed_dirs.add(current)
+                    
+                    current = current.parent
+            
+            return summary_files
+            
+        except Exception as e:
+            logger.error(f"Error generating summaries: {e}")
+            return []
+            
+    def _collect_directories(self) -> Set[Path]:
+        """Collect all directories containing files to summarize."""
+        directories = set()
+        try:
+            for file_path in self.root_dir.rglob('*'):
+                if (file_path.is_file() and 
+                    self.should_include_file(file_path) and
+                    self.should_include_directory(file_path.parent)):
+                    directories.add(file_path.parent)
+                    
+                    # Special case for .github/workflows
+                    if '.github/workflows' in str(file_path):
+                        workflows_dir = file_path.parent
+                        if workflows_dir.name == 'workflows' and workflows_dir.parent.name == '.github':
+                            directories.add(workflows_dir)
+                            
+        except Exception as e:
+            logger.error(f"Error collecting directories: {e}")
+        return directories
+
+
+
+---
+File: src/llamero/summary/python_files.py
+---
+"""Special summary generators for project-wide summaries."""
+from pathlib import Path
+from loguru import logger
+from .python_signatures import SignatureExtractor, generate_python_summary
+
+
+class PythonSummariesGenerator:
+    """Generate special project-wide summary files."""
+    
+    def __init__(self, root_dir: str | Path):
+        """Initialize generator with root directory."""
+        self.root_dir = Path(root_dir)
+        self.summaries_dir = self.root_dir / "SUMMARIES"
+        self.signature_extractor = SignatureExtractor()  # New instance
+
+    def generate_summaries(self) -> list[Path]:
+        """Generate all special summary files.
+        
+        Returns:
+            List of paths to generated summary files
+        """
+        self.summaries_dir.mkdir(exist_ok=True)
+        generated_files = []
+
+        python_path = self.summaries_dir / "PYTHON.md"
+        python_content = generate_python_summary(self.root_dir)  # Using new generator
+        python_path.write_text(python_content)
+        generated_files.append(python_path)
+        
+        return generated_files
+
+
+if __name__ == "__main__":
+    summarizer = PythonSummariesGenerator(".")
+    summarizer.generate_summaries()
+
+
+
+---
+File: src/llamero/summary/python_signatures.py
+---
+"""Extracts and formats Python code signatures with proper nesting."""
+import ast
+from dataclasses import dataclass
+from pathlib import Path
+from typing import List, Dict
+from loguru import logger
+
+@dataclass
+class Signature:
+    """Represents a Python function or class signature with documentation."""
+    name: str
+    kind: str  # 'function', 'method', or 'class'
+    args: list[str]
+    returns: str | None
+    docstring: str | None
+    decorators: list[str]
+    methods: list['Signature']  # For storing class methods
+
+class ParentNodeTransformer(ast.NodeTransformer):
+    """Add parent references to all nodes in the AST."""
+    
+    def visit(self, node: ast.AST) -> ast.AST:
+        """Visit a node and add parent references to all its children."""
+        for child in ast.iter_child_nodes(node):
+            child.parent = node
+        return super().visit(node)
+
+class SignatureExtractor:
+    """Extracts detailed signatures from Python files."""
+    
+    def get_type_annotation(self, node: ast.AST) -> str:
+        """Convert AST annotation node to string representation."""
+        if isinstance(node, ast.Name):
+            return node.id
+        elif isinstance(node, ast.Constant):
+            return repr(node.value)
+        elif isinstance(node, ast.Subscript):
+            container = self.get_type_annotation(node.value)
+            params = self.get_type_annotation(node.slice)
+            return f"{container}[{params}]"
+        elif isinstance(node, ast.BinOp):
+            left = self.get_type_annotation(node.left)
+            right = self.get_type_annotation(node.right)
+            return f"{left} | {right}"
+        elif isinstance(node, ast.Tuple):
+            elts = [self.get_type_annotation(e) for e in node.elts]
+            return f"[{', '.join(elts)}]"
+        return "Any"
+    
+    def get_arg_string(self, arg: ast.arg) -> str:
+        """Convert function argument to string with type annotation."""
+        arg_str = arg.arg
+        if arg.annotation:
+            type_str = self.get_type_annotation(arg.annotation)
+            arg_str += f": {type_str}"
+        return arg_str
+
+    def extract_signatures(self, source: str) -> List[Signature]:
+        """Extract all function and class signatures from source code."""
+        try:
+            # Parse and add parent references
+            tree = ast.parse(source)
+            transformer = ParentNodeTransformer()
+            transformer.visit(tree)
+            
+            signatures: List[Signature] = []
+            classes: Dict[ast.ClassDef, Signature] = {}
+            
+            for node in ast.walk(tree):
+                # Handle functions
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    args = []
+                    for arg in node.args.args:
+                        args.append(self.get_arg_string(arg))
+                    
+                    returns = None
+                    if node.returns:
+                        returns = self.get_type_annotation(node.returns)
+                    
+                    decorators = []
+                    for decorator in node.decorator_list:
+                        if isinstance(decorator, ast.Name):
+                            decorators.append(f"@{decorator.id}")
+                        elif isinstance(decorator, ast.Call):
+                            if isinstance(decorator.func, ast.Name):
+                                decorators.append(f"@{decorator.func.id}(...)")
+                    
+                    sig = Signature(
+                        name=node.name,
+                        kind='method' if hasattr(node, 'parent') and isinstance(node.parent, ast.ClassDef) else 'function',
+                        args=args,
+                        returns=returns,
+                        docstring=ast.get_docstring(node),
+                        decorators=decorators,
+                        methods=[]
+                    )
+                    
+                    # Add to appropriate parent
+                    if hasattr(node, 'parent') and isinstance(node.parent, ast.ClassDef) and node.parent in classes:
+                        classes[node.parent].methods.append(sig)
+                    else:
+                        signatures.append(sig)
+                
+                # Handle classes
+                elif isinstance(node, ast.ClassDef):
+                    bases = []
+                    for base in node.bases:
+                        if isinstance(base, ast.Name):
+                            bases.append(base.id)
+                    
+                    decorators = []
+                    for decorator in node.decorator_list:
+                        if isinstance(decorator, ast.Name):
+                            decorators.append(f"@{decorator.id}")
+                    
+                    class_sig = Signature(
+                        name=node.name,
+                        kind='class',
+                        args=bases,
+                        returns=None,
+                        docstring=ast.get_docstring(node),
+                        decorators=decorators,
+                        methods=[]
+                    )
+                    
+                    classes[node] = class_sig
+                    signatures.append(class_sig)
+                    
+            return signatures
+        except Exception as e:
+            logger.error(f"Error parsing source: {e}")
+            return []
+
+    def format_signature(self, sig: Signature, indent: int = 0) -> List[str]:
+        """Format a signature for display with proper indentation."""
+        lines = []
+        indent_str = "    " * indent
+        
+        # Add decorators
+        for decorator in sig.decorators:
+            lines.append(f"{indent_str}{decorator}")
+        
+        # Format the signature line
+        if sig.kind == 'class':
+            base_str = f"({', '.join(sig.args)})" if sig.args else ""
+            lines.append(f"{indent_str}class {sig.name}{base_str}")
+        else:
+            async_prefix = "async " if "async" in sig.decorators else ""
+            args_str = ", ".join(sig.args)
+            return_str = f" -> {sig.returns}" if sig.returns else ""
+            lines.append(f"{indent_str}{async_prefix}def {sig.name}({args_str}){return_str}")
+        
+        # Add docstring if present
+        if sig.docstring:
+            doc_lines = sig.docstring.split('\n')
+            if len(doc_lines) == 1:
+                lines.append(f'{indent_str}    """{sig.docstring}"""')
+            else:
+                lines.append(f'{indent_str}    """')
+                for doc_line in doc_lines:
+                    if doc_line.strip():
+                        lines.append(f"{indent_str}    {doc_line}")
+                lines.append(f'{indent_str}    """')
+        
+        # Add methods for classes
+        if sig.methods:
+            lines.append("")  # Add spacing
+            for method in sig.methods:
+                lines.extend(self.format_signature(method, indent + 1))
+                lines.append("")  # Add spacing between methods
+        
+        return lines
+
+def generate_python_summary(root_dir: str | Path) -> str:
+    """Generate enhanced Python project structure summary.
+    
+    Args:
+        root_dir: Root directory of the project
+        
+    Returns:
+        Formatted markdown string of Python signatures
+    """
+    root_dir = Path(root_dir)
+    extractor = SignatureExtractor()
+    content = ["# Python Project Structure\n"]
+    
+    for file in sorted(root_dir.rglob("*.py")):
+        if any(part.startswith('.') for part in file.parts):
+            continue
+        if '__pycache__' in file.parts:
+            continue
+            
+        try:
+            # Get relative path
+            rel_path = file.relative_to(root_dir)
+            
+            # Read and extract signatures
+            source = file.read_text()
+            signatures = extractor.extract_signatures(source)
+            
+            # Only include files that have actual content
+            if signatures:
+                content.append(f"## {rel_path}")
+                content.append("```python")
+                
+                # Format each signature
+                for sig in signatures:
+                    content.extend(extractor.format_signature(sig))
+                    content.append("")  # Add spacing between top-level items
+                
+                content.append("```\n")
+            
+        except Exception as e:
+            logger.error(f"Error processing {file}: {e}")
+    
+    return "\n".join(content)
+
+
+
+---
+File: src/llamero/summary/readmes.py
+---
+"""Special summary generators for project-wide summaries."""
+from pathlib import Path
+from typing import List
+from loguru import logger
+
+
+class ReadmeSummariesGenerator:
+    """Generate special project-wide summary files."""
+    
+    def __init__(self, root_dir: str | Path):
+        """Initialize generator with root directory."""
+        self.root_dir = Path(root_dir)
+        self.summaries_dir = self.root_dir / "SUMMARIES"
+    
+    def _find_readmes(self, include_root: bool = True) -> List[Path]:
+        """Find all README files in the project."""
+        readmes = []
+        for file in self.root_dir.rglob("README.md"):
+            if not include_root and file.parent == self.root_dir:
+                continue
+            readmes.append(file)
+        return sorted(readmes)
+    
+    def generate_readme_summaries(self) -> List[Path]:
+        """Generate all special summary files.
+        
+        Returns:
+            List of paths to generated summary files
+        """
+        self.summaries_dir.mkdir(exist_ok=True)
+        generated_files = []
+        
+        # Generate READMEs.md
+        readmes_path = self.summaries_dir / "READMEs.md"
+        readme_content = []
+        for readme in self._find_readmes(include_root=True):
+            rel_path = readme.relative_to(self.root_dir)
+            readme_content.extend([
+                "=" * 80,
+                f"# {rel_path}",
+                "=" * 80,
+                readme.read_text(),
+                "\n"
+            ])
+        readmes_path.write_text("\n".join(readme_content))
+        generated_files.append(readmes_path)
+        
+        # Generate README_SUBs.md
+        subs_path = self.summaries_dir / "README_SUBs.md"
+        subs_content = []
+        for readme in self._find_readmes(include_root=False):
+            rel_path = readme.relative_to(self.root_dir)
+            subs_content.extend([
+                "=" * 80,
+                f"# {rel_path}",
+                "=" * 80,
+                readme.read_text(),
+                "\n"
+            ])
+        subs_path.write_text("\n".join(subs_content))
+        generated_files.append(subs_path)
+                
+        return generated_files
+
+if __name__ == "__main__":
+    summarizer = ReadmeSummariesGenerator('.')
+    summarizer.generate_readme_summaries()
+
+
+
+---
+File: src/llamero/tree_generator.py
+---
+from pathlib import Path
+from loguru import logger
+from tree_format import format_tree
+from .utils import load_config
+
+
+def should_include_path(path: Path, config: dict) -> bool:
+    """
+    Determines if a path should be included based on config ignore patterns.
+    Matches path components exactly against ignore patterns.
+    
+    Args:
+        path: Path to check
+        config: Config dict containing ignore patterns under tool.readme.tree.ignore_patterns
+        
+    Returns:
+        True if path should be included, False if it matches any ignore pattern
+    """
+    ignore_patterns = config.get("tool", {}).get("readme", {}).get("tree", {}).get("ignore_patterns", [])
+    
+    # Convert path to parts for matching
+    parts = path.parts
+    if not parts:  # Handle empty path
+        return True
+        
+    for pattern in ignore_patterns:
+        # Handle file extension patterns (e.g. *.pyc)
+        if pattern.startswith('*'):
+            if str(path).endswith(pattern[1:]):
+                return False
+        # Handle directory/file name patterns
+        elif pattern in parts or (pattern == str(path.name)):
+            return False
+    return True
+
+def node_to_tree(path: Path, config: dict) -> tuple[str, list] | None:
+    """
+    Recursively converts a directory path to a tree structure.
+    Filters out empty directories except for essential ones like 'docs' and 'src'.
+    
+    Args:
+        path: Directory or file path to convert
+        config: Config dict containing ignore patterns
+        
+    Returns:
+        Tuple of (node_name, child_nodes) or None if path should be excluded
+    """
+    if not should_include_path(path, config):
+        return None
+        
+    if path.is_file():
+        return path.name, []
+        
+    children = [
+        node for child in sorted(path.iterdir())
+        if (node := node_to_tree(child, config)) is not None
+    ]
+    
+    if not children and path.name not in {'docs', 'src'}:
+        return None
+        
+    return path.name, children
+
+def generate_tree(root_dir: str = ".") -> str:
+    """
+    Generates a formatted directory tree string starting from root_dir.
+    Handles missing config files and sections gracefully.
+    
+    Args:
+        root_dir: Root directory to start tree generation from
+        
+    Returns:
+        Formatted string representation of the directory tree
+    """
+    try:
+        config = load_config("pyproject.toml")
+    except (FileNotFoundError, KeyError):
+        config = {"tool": {"readme": {"tree": {"ignore_patterns": []}}}}
+        logger.warning("Config file or sections missing, proceeding with no ignore patterns")
+    
+    root_path = Path(root_dir)
+    tree_root = node_to_tree(root_path, config)
+    
+    if tree_root is None:
+        return ""
+        
+    return format_tree(
+        tree_root,
+        format_node=lambda x: x[0],
+        get_children=lambda x: x[1]
+    )
+
+
+
+---
+File: src/llamero/utils.py
+---
+from pathlib import Path
+import tomli
+import os
+import subprocess
+from loguru import logger
+
+def get_project_root() -> Path:
+    """
+    Get the project root directory by looking for pyproject.toml
+    Returns the absolute path to the project root
+    """
+    current = Path.cwd().absolute()
+    
+    # Look for pyproject.toml in current and parent directories
+    while current != current.parent:
+        if (current / 'pyproject.toml').exists():
+            return current
+        current = current.parent
+    
+    # If we couldn't find it, use the current working directory
+    # and log a warning
+    logger.warning("Could not find pyproject.toml in parent directories")
+    return Path.cwd().absolute()
+
+def load_config(config_path: str) -> dict:
+    """
+    Load configuration from a TOML file
+    
+    Args:
+        config_path (str): Path to the TOML configuration file relative to project root
+        
+    Returns:
+        dict: Parsed configuration data
+    """
+
+    full_path = get_project_root() / config_path
+    if full_path.exists():
+        logger.debug(f"Attempting to load config from: {full_path}")
+        with open(full_path, "rb") as f:
+            return tomli.load(f)
+    else:
+        #logger.error(f"Configuration file not found: {full_path}")
+        raise FileNotFoundError(f"Configuration file not found: {full_path}")
+
+def commit_and_push(files_to_commit: str|Path|list[str]|list[Path], message = None):
+    """Commit and push changes for a specific file"""
+    if isinstance(files_to_commit, str) or isinstance(files_to_commit, Path):
+        files_to_commit = [files_to_commit]
+    files_to_commit = [str(f) for f in files_to_commit] # Ensure Path objects are stringified
+    logger.info(f"files to commit: {files_to_commit}")
+    try:
+        # Configure Git for GitHub Actions
+        subprocess.run(["git", "config", "--global", "user.name", "GitHub Action"], check=True)
+        subprocess.run(["git", "config", "--global", "user.email", "action@github.com"], check=True)
+
+        #changes = False
+        files_staged = []
+        for file_to_commit in files_to_commit:
+            # Check if there are any changes to commit
+            status = subprocess.run(["git", "status", "--porcelain", file_to_commit], capture_output=True, text=True, check=True)
+            if status.stdout.strip():
+                #changes=True
+                subprocess.run(["git", "add", file_to_commit], check=True)
+                files_staged.append(file_to_commit)
+        if not files_staged:
+            logger.info(f"No changes to commit")
+            return
+        if message is None:
+            if len(files_staged) == 1:
+                message = f"Update {file_to_commit}"
+            else:
+                message = f"Updated {len(files_staged)} files."
+        subprocess.run(["git", "commit", "-m", message], check=True)
+        subprocess.run(["git", "push"], check=True)
+        
+        logger.success(f"Changes to {files_staged} committed and pushed successfully")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error during git operations: {e}")
+        if "nothing to commit" in str(e):
+            logger.info("No changes to commit. Continuing execution")
+        else:
+            logger.warning("Exiting early due to Git error")
+            raise
+
+def commit_and_push_to_branch(
+    message: str,
+    branch: str,
+    paths: list[str | Path],
+    base_branch: str | None = None,
+    force: bool = False
+) -> None:
+    """Commit changes and push to specified branch.
+    
+    Args:
+        message: Commit message
+        branch: Branch to push to
+        paths: List of paths to commit
+        base_branch: Optional base branch to create new branch from
+        force: If True, create fresh branch and force push (for generated content)
+    """
+    # Convert paths to strings
+    path_strs = [str(p) for p in paths]
+    
+    # Set up git config
+    subprocess.run(["git", "config", "--local", "user.email", "github-actions[bot]@users.noreply.github.com"])
+    subprocess.run(["git", "config", "--local", "user.name", "github-actions[bot]"])
+    
+    if force:
+        # Create fresh branch from base_branch or HEAD
+        base = base_branch or "HEAD"
+        logger.info(f"Creating fresh branch {branch} from {base}")
+        subprocess.run(["git", "checkout", "-B", branch, base])
+    else:
+        # Normal branch handling
+        if base_branch:
+            logger.info(f"Creating new branch {branch} from {base_branch}")
+            subprocess.run(["git", "checkout", "-b", branch, base_branch])
+        else:
+            logger.info(f"Switching to branch {branch}")
+            subprocess.run(["git", "checkout", "-b", branch])
+            subprocess.run(["git", "pull", "origin", branch], capture_output=True)
+    
+    # Stage and commit changes
+    subprocess.run(["git", "add", *path_strs])
+    
+    # Only commit if there are changes
+    result = subprocess.run(
+        ["git", "diff", "--staged", "--quiet"],
+        capture_output=True
+    )
+    if result.returncode == 1:  # Changes exist
+        logger.info("Committing changes")
+        subprocess.run(["git", "commit", "-m", message])
+        
+        # Push changes
+        if force:
+            logger.info(f"Force pushing {branch} branch")
+            subprocess.run(["git", "push", "-f", "origin", branch])
+        else:
+            logger.info("Pushing changes")
+            subprocess.run(["git", "push", "origin", branch])
+    else:
+        logger.info("No changes to commit")
+
+---
+File: src/llamero.egg-info/SOURCES.txt
+---
+LICENSE
+README.md
+pyproject.toml
+src/llamero/__init__.py
+src/llamero/__main__.py
+src/llamero/dir2doc.py
+src/llamero/tree_generator.py
+src/llamero/utils.py
+src/llamero.egg-info/PKG-INFO
+src/llamero.egg-info/SOURCES.txt
+src/llamero.egg-info/dependency_links.txt
+src/llamero.egg-info/entry_points.txt
+src/llamero.egg-info/requires.txt
+src/llamero.egg-info/top_level.txt
+src/llamero/summary/__init__.py
+src/llamero/summary/concatenative.py
+src/llamero/summary/python_files.py
+src/llamero/summary/python_signatures.py
+src/llamero/summary/readmes.py
+tests/test_dir2doc.py
+tests/test_tree_generator.py
+tests/test_utils.py
+
+
+---
+File: src/llamero.egg-info/dependency_links.txt
+---
+
+
+
+
+---
+File: src/llamero.egg-info/entry_points.txt
+---
+[console_scripts]
+llamero = llamero:__main__.cli
+
+
+
+---
+File: src/llamero.egg-info/requires.txt
+---
+Jinja2>=3.1.2
+tomli>=2.0.1
+loguru>=0.7.0
+fire>=0.5.0
+tree-format>=0.1.2
+pytest>=7.0
+markdown2>=2.4.0
+
+
+
+---
+File: src/llamero.egg-info/top_level.txt
+---
+llamero
